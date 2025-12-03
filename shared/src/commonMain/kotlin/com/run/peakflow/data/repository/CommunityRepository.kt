@@ -6,7 +6,7 @@ import com.run.peakflow.data.network.ApiService
 class CommunityRepository(
     private val api: ApiService
 ) {
-    suspend fun getAllCommunities(): List<CommunityGroup> {
+    suspend fun getCommunities(): List<CommunityGroup> {
         return api.getCommunities()
     }
 
@@ -16,5 +16,21 @@ class CommunityRepository(
 
     suspend fun getCommunityById(communityId: String): CommunityGroup? {
         return api.getCommunityById(communityId)
+    }
+
+    suspend fun getDiscoverCommunities(
+        city: String,
+        excludeUserCommunities: List<String>
+    ): List<CommunityGroup> {
+        return api.getDiscoverCommunities(city, excludeUserCommunities)
+    }
+
+    suspend fun getUserCommunities(
+        userId: String,
+        membershipRepository: MembershipRepository
+    ): List<CommunityGroup> {
+        val memberships = membershipRepository.getUserMemberships(userId)
+        val communityIds = memberships.map { it.communityId }
+        return getCommunities().filter { it.id in communityIds }
     }
 }

@@ -4,9 +4,9 @@ import com.run.peakflow.data.models.User
 import com.run.peakflow.data.repository.UserRepository
 
 class GetCurrentUserUseCase(
-    private val repository: UserRepository
+    private val userRepository: UserRepository
 ) {
-    operator fun invoke(): User? {
-        return repository.getCachedUser()
+    suspend operator fun invoke(): User? {
+        return userRepository.getCurrentUser()
     }
 }

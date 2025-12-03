@@ -4,9 +4,9 @@ import com.run.peakflow.data.models.CommunityGroup
 import com.run.peakflow.data.repository.CommunityRepository
 
 class GetCommunityById(
-    private val repository: CommunityRepository
+    private val communityRepository: CommunityRepository
 ) {
     suspend operator fun invoke(communityId: String): CommunityGroup? {
-        return repository.getCommunityById(communityId)
+        return communityRepository.getCommunityById(communityId)
     }
 }

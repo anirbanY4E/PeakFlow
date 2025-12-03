@@ -4,9 +4,9 @@ import com.run.peakflow.data.models.Event
 import com.run.peakflow.data.repository.EventRepository
 
 class GetCommunityEvents(
-    private val repository: EventRepository
+    private val eventRepository: EventRepository
 ) {
-    suspend operator fun invoke(groupId: String): List<Event> {
-        return repository.getEventsByGroupId(groupId)
+    suspend operator fun invoke(communityId: String): List<Event> {
+        return eventRepository.getEventsByGroupId(communityId)
     }
 }

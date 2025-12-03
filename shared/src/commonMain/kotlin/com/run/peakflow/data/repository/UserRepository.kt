@@ -1,32 +1,46 @@
 package com.run.peakflow.data.repository
 
+import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.models.User
 import com.run.peakflow.data.network.ApiService
 
 class UserRepository(
     private val api: ApiService
 ) {
-    private var cachedUser: User? = null
+    private var currentUserId: String? = null
 
-    suspend fun createUser(name: String, city: String): User {
-        val user = api.createUser(name, city)
-        cachedUser = user
-        return user
+    fun setCurrentUserId(userId: String?) {
+        currentUserId = userId
     }
+
+    fun getCurrentUserId(): String? = currentUserId
 
     suspend fun getUser(userId: String): User? {
         return api.getUser(userId)
     }
 
-    fun getCachedUser(): User? = cachedUser
-
-    fun setCachedUser(user: User) {
-        cachedUser = user
+    suspend fun getCurrentUser(): User? {
+        val userId = currentUserId ?: return null
+        return api.getUser(userId)
     }
 
-    fun isUserLoggedIn(): Boolean = cachedUser != null
+    suspend fun updateUser(user: User): User {
+        return api.updateUser(user)
+    }
 
-    fun clearUser() {
-        cachedUser = null
+    suspend fun completeProfile(
+        userId: String,
+        name: String,
+        city: String,
+        interests: List<EventCategory>,
+        avatarUrl: String?
+    ): User {
+        return api.completeProfile(userId, name, city, interests, avatarUrl)
+    }
+
+    fun isLoggedIn(): Boolean = currentUserId != null
+
+    fun logout() {
+        currentUserId = null
     }
 }

@@ -1,8 +1,9 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.run.peakflow.domain.usecases.CancelRsvpUseCase
 import com.run.peakflow.domain.usecases.CheckInToEvent
-import com.run.peakflow.domain.usecases.GetCurrentUserUseCase
+import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.GetEventById
 import com.run.peakflow.domain.usecases.GetEventCheckInStatus
 import com.run.peakflow.domain.usecases.GetEventRsvpStatus
@@ -16,122 +17,126 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 class EventDetailComponent(
     componentContext: ComponentContext,
     private val eventId: String,
-    private val getEventById: GetEventById,
-    private val getCurrentUser: GetCurrentUserUseCase,
-    private val getEventRsvpStatus: GetEventRsvpStatus,
-    private val getEventCheckInStatus: GetEventCheckInStatus,
-    private val rsvpToEvent: RsvpToEvent,
-    private val checkInToEvent: CheckInToEvent,
-    private val onBack: () -> Unit
-) : ComponentContext by componentContext {
+    private val onNavigateBack: () -> Unit
+) : ComponentContext by componentContext, KoinComponent {
+
+    private val getEventById: GetEventById by inject()
+    private val getCommunityById: GetCommunityById by inject()
+    private val getEventRsvpStatus: GetEventRsvpStatus by inject()
+    private val getEventCheckInStatus: GetEventCheckInStatus by inject()
+    private val rsvpToEvent: RsvpToEvent by inject()
+    private val cancelRsvp: CancelRsvpUseCase by inject()
+    private val checkInToEvent: CheckInToEvent by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private val _state = MutableStateFlow<EventDetailState>(EventDetailState.Loading)
+    private val _state = MutableStateFlow(EventDetailState())
     val state: StateFlow<EventDetailState> = _state.asStateFlow()
 
     init {
-        loadEventDetails()
+        loadEvent()
     }
 
-    fun loadEventDetails() {
+    fun loadEvent() {
         scope.launch {
-            _state.value = EventDetailState.Loading
+            _state.update { it.copy(isLoading = true, error = null) }
 
             try {
                 val event = getEventById(eventId)
+                val community = event?.let { getCommunityById(it.groupId) }
+                val hasRsvped = getEventRsvpStatus(eventId)
+                val hasCheckedIn = getEventCheckInStatus(eventId)
 
-                if (event == null) {
-                    _state.value = EventDetailState.Error("Event not found")
-                    return@launch
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        event = event,
+                        community = community,
+                        hasRsvped = hasRsvped,
+                        hasCheckedIn = hasCheckedIn,
+                        participantsCount = event?.currentParticipants ?: 0
+                    )
                 }
-
-                val user = getCurrentUser()
-                val userId = user?.id ?: ""
-
-                val hasRsvped = if (userId.isNotEmpty()) {
-                    getEventRsvpStatus(userId, eventId)
-                } else false
-
-                val hasCheckedIn = if (userId.isNotEmpty()) {
-                    getEventCheckInStatus(userId, eventId)
-                } else false
-
-                _state.value = EventDetailState.Success(
-                    event = event,
-                    hasRsvped = hasRsvped,
-                    hasCheckedIn = hasCheckedIn
-                )
             } catch (e: Exception) {
-                _state.value = EventDetailState.Error(
-                    e.message ?: "Failed to load event details"
-                )
+                _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
     }
 
-    fun onRsvpClicked() {
-        val currentState = _state.value
-        if (currentState !is EventDetailState.Success) return
-        if (currentState.hasRsvped) return
+    fun onBackClick() {
+        onNavigateBack()
+    }
 
-        val user = getCurrentUser() ?: return
-
+    fun onRsvpClick() {
         scope.launch {
-            _state.update {
-                (it as? EventDetailState.Success)?.copy(isRsvpLoading = true) ?: it
-            }
+            _state.update { it.copy(isRsvpLoading = true) }
 
-            try {
-                rsvpToEvent(user.id, eventId)
-                _state.update {
-                    (it as? EventDetailState.Success)?.copy(
+            val result = rsvpToEvent(eventId)
+
+            result.onSuccess {
+                _state.update { currentState ->
+                    val newEvent = currentState.event?.copy(
+                        currentParticipants = currentState.event.currentParticipants + 1
+                    )
+                    currentState.copy(
+                        isRsvpLoading = false,
                         hasRsvped = true,
-                        isRsvpLoading = false
-                    ) ?: it
+                        event = newEvent,
+                        participantsCount = currentState.participantsCount + 1
+                    )
                 }
-            } catch (e: Exception) {
-                _state.update {
-                    (it as? EventDetailState.Success)?.copy(isRsvpLoading = false) ?: it
-                }
+            }.onFailure { error ->
+                _state.update { it.copy(isRsvpLoading = false, error = error.message) }
             }
         }
     }
 
-    fun onCheckInClicked() {
-        val currentState = _state.value
-        if (currentState !is EventDetailState.Success) return
-        if (!currentState.hasRsvped) return
-        if (currentState.hasCheckedIn) return
-
-        val user = getCurrentUser() ?: return
-
+    fun onCancelRsvpClick() {
         scope.launch {
-            _state.update {
-                (it as? EventDetailState.Success)?.copy(isCheckInLoading = true) ?: it
-            }
+            _state.update { it.copy(isRsvpLoading = true) }
 
-            try {
-                checkInToEvent(user.id, eventId)
-                _state.update {
-                    (it as? EventDetailState.Success)?.copy(
-                        hasCheckedIn = true,
-                        isCheckInLoading = false
-                    ) ?: it
+            val result = cancelRsvp(eventId)
+
+            result.onSuccess {
+                _state.update { currentState ->
+                    val newEvent = currentState.event?.copy(
+                        currentParticipants = (currentState.event.currentParticipants - 1).coerceAtLeast(0)
+                    )
+                    currentState.copy(
+                        isRsvpLoading = false,
+                        hasRsvped = false,
+                        event = newEvent,
+                        participantsCount = (currentState.participantsCount - 1).coerceAtLeast(0)
+                    )
                 }
-            } catch (e: Exception) {
-                _state.update {
-                    (it as? EventDetailState.Success)?.copy(isCheckInLoading = false) ?: it
-                }
+            }.onFailure { error ->
+                _state.update { it.copy(isRsvpLoading = false, error = error.message) }
             }
         }
     }
 
-    fun onBackClicked() {
-        onBack()
+    fun onCheckInClick() {
+        scope.launch {
+            _state.update { it.copy(isCheckInLoading = true) }
+
+            val result = checkInToEvent(eventId)
+
+            result.onSuccess {
+                _state.update {
+                    it.copy(
+                        isCheckInLoading = false,
+                        hasCheckedIn = true
+                    )
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(isCheckInLoading = false, error = error.message) }
+            }
+        }
     }
 }
