@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.backhandler.BackCallback
 import com.run.peakflow.presentation.state.MainState
 import com.run.peakflow.presentation.state.MainTab
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,16 @@ class MainComponent(
 
     private val _state = MutableStateFlow(MainState())
     val state: StateFlow<MainState> = _state.asStateFlow()
+
+    private val backCallback = BackCallback(isEnabled = false) {
+        // Go back to Feed tab instead of exiting
+        onTabSelected(MainTab.FEED)
+    }
+
+    init {
+        backHandler.register(backCallback)
+        updateBackCallback()
+    }
 
     val feedComponent = FeedComponent(
         componentContext = componentContext,
@@ -44,5 +55,11 @@ class MainComponent(
 
     fun onTabSelected(tab: MainTab) {
         _state.update { it.copy(selectedTab = tab) }
+        updateBackCallback()
+    }
+
+    private fun updateBackCallback() {
+        // Enable back callback only when NOT on Feed tab
+        backCallback.isEnabled = _state.value.selectedTab != MainTab.FEED
     }
 }
