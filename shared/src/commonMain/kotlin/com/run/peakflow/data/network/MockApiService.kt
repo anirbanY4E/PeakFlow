@@ -884,6 +884,44 @@ class MockApiService : ApiService {
 
     // ==================== EVENTS ====================
 
+    override suspend fun createEvent(
+        communityId: String,
+        title: String,
+        description: String,
+        category: EventCategory,
+        date: String,
+        time: String,
+        location: String,
+        maxParticipants: Int,
+        isFree: Boolean,
+        price: Double?
+    ): Event {
+        delay(500)
+
+        val event = Event(
+            id = generateId("event"),
+            groupId = communityId,
+            title = title,
+            description = description,
+            category = category,
+            date = date,
+            time = time,
+            endTime = null,
+            location = location,
+            latitude = null,
+            longitude = null,
+            imageUrl = null,
+            maxParticipants = maxParticipants,
+            currentParticipants = 0,
+            isFree = isFree,
+            price = price,
+            createdAt = currentTimestamp()
+        )
+
+        events.add(event)
+        return event
+    }
+
     override suspend fun getEventsByGroupId(groupId: String): List<Event> {
         delay(350)
         return events

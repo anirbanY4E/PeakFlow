@@ -123,6 +123,12 @@ class RootComponent(
                     },
                     onNavigateToJoinRequests = { communityId ->
                         navigation.pushNew(Config.JoinRequests(communityId))
+                    },
+                    onNavigateToCreateEvent = { communityId ->
+                        navigation.pushNew(Config.CreateEvent(communityId))
+                    },
+                    onNavigateToCreatePost = { communityId ->
+                        navigation.pushNew(Config.CreatePost(communityId))
                     }
                 )
             )
@@ -159,6 +165,22 @@ class RootComponent(
                     componentContext = componentContext,
                     onNavigateBack = { navigation.pop() },
                     onLogout = { navigation.replaceAll(Config.Welcome) }
+                )
+            )
+            is Config.CreateEvent -> Child.CreateEvent(
+                CreateEventComponent(
+                    componentContext = componentContext,
+                    communityId = config.communityId,
+                    onNavigateBack = { navigation.pop() },
+                    onEventCreated = { navigation.pop() }
+                )
+            )
+            is Config.CreatePost -> Child.CreatePost(
+                CreatePostComponent(
+                    componentContext = componentContext,
+                    communityId = config.communityId,
+                    onNavigateBack = { navigation.pop() },
+                    onPostCreated = { navigation.pop() }
                 )
             )
         }
@@ -207,6 +229,12 @@ class RootComponent(
 
         @Serializable
         data object Settings : Config()
+
+        @Serializable
+        data class CreateEvent(val communityId: String) : Config()
+
+        @Serializable
+        data class CreatePost(val communityId: String) : Config()
     }
 
     sealed class Child {
@@ -224,5 +252,7 @@ class RootComponent(
         data class GenerateInvite(val component: GenerateInviteComponent) : Child()
         data class JoinRequests(val component: JoinRequestsComponent) : Child()
         data class Settings(val component: SettingsComponent) : Child()
+        data class CreateEvent(val component: CreateEventComponent) : Child()
+        data class CreatePost(val component: CreatePostComponent) : Child()
     }
 }

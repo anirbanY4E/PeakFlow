@@ -14,6 +14,7 @@ import com.run.peakflow.domain.usecases.ApproveJoinRequestUseCase
 import com.run.peakflow.domain.usecases.CancelRsvpUseCase
 import com.run.peakflow.domain.usecases.CheckInToEvent
 import com.run.peakflow.domain.usecases.CompleteProfileUseCase
+import com.run.peakflow.domain.usecases.CreateEventUseCase
 import com.run.peakflow.domain.usecases.CreatePostUseCase
 import com.run.peakflow.domain.usecases.GenerateInviteCodeUseCase
 import com.run.peakflow.domain.usecases.GetAllUserEventsUseCase
@@ -128,6 +129,7 @@ val appModule = module {
 
     // ==================== USE CASES: EVENT ====================
 
+    factory { CreateEventUseCase(get(), get(), get()) }
     factory { GetCommunityEvents(get()) }
     factory { GetEventById(get()) }
     factory { GetNearbyEventsUseCase(get(), get(), get()) }

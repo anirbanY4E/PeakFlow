@@ -143,6 +143,19 @@ interface ApiService {
 
     // ==================== EVENTS ====================
 
+    suspend fun createEvent(
+        communityId: String,
+        title: String,
+        description: String,
+        category: EventCategory,
+        date: String,
+        time: String,
+        location: String,
+        maxParticipants: Int,
+        isFree: Boolean,
+        price: Double?
+    ): Event
+
     suspend fun getEventsByGroupId(groupId: String): List<Event>
 
     suspend fun getEventById(eventId: String): Event?
