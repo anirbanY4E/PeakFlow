@@ -30,7 +30,9 @@ class CommunityDetailComponent(
     private val onNavigateToEventDetail: (String) -> Unit,
     private val onNavigateToPostDetail: (String) -> Unit,
     private val onNavigateToGenerateInvite: (String) -> Unit,
-    private val onNavigateToJoinRequests: (String) -> Unit
+    private val onNavigateToJoinRequests: (String) -> Unit,
+    private val onNavigateToCreateEvent: (String) -> Unit,
+    private val onNavigateToCreatePost: (String) -> Unit
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val getCommunityById: GetCommunityById by inject()
@@ -159,5 +161,13 @@ class CommunityDetailComponent(
 
     fun onJoinRequestsClick() {
         onNavigateToJoinRequests(communityId)
+    }
+
+    fun onCreateEventClick() {
+        onNavigateToCreateEvent(communityId)
+    }
+
+    fun onCreatePostClick() {
+        onNavigateToCreatePost(communityId)
     }
 }

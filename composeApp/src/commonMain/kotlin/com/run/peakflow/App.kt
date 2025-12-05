@@ -14,6 +14,8 @@ import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.run.peakflow.presentation.components.RootComponent
 import com.run.peakflow.ui.screens.CommunityDetailScreen
+import com.run.peakflow.ui.screens.CreateEventScreen
+import com.run.peakflow.ui.screens.CreatePostScreen
 import com.run.peakflow.ui.screens.EventDetailScreen
 import com.run.peakflow.ui.screens.GenerateInviteScreen
 import com.run.peakflow.ui.screens.InviteCodeScreen
@@ -57,6 +59,8 @@ fun App(rootComponent: RootComponent) {
                     is RootComponent.Child.GenerateInvite -> GenerateInviteScreen(instance.component)
                     is RootComponent.Child.JoinRequests -> JoinRequestsScreen(instance.component)
                     is RootComponent.Child.Settings -> SettingsScreen(instance.component)
+                    is RootComponent.Child.CreateEvent -> CreateEventScreen(instance.component)
+                    is RootComponent.Child.CreatePost -> CreatePostScreen(instance.component)
                 }
             }
         }

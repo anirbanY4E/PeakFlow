@@ -11,6 +11,24 @@ class EventRepository(
 ) {
     // ==================== EVENTS ====================
 
+    suspend fun createEvent(
+        communityId: String,
+        title: String,
+        description: String,
+        category: EventCategory,
+        date: String,
+        time: String,
+        location: String,
+        maxParticipants: Int,
+        isFree: Boolean = true,
+        price: Double? = null
+    ): Event {
+        return api.createEvent(
+            communityId, title, description, category,
+            date, time, location, maxParticipants, isFree, price
+        )
+    }
+
     suspend fun getEventsByGroupId(groupId: String): List<Event> {
         return api.getEventsByGroupId(groupId)
     }
