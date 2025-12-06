@@ -403,7 +403,7 @@ class MockApiService : ApiService {
                 userId = "user_admin_001",
                 communityId = "grp_001", // Cubbon Park Morning Runners
                 role = MembershipRole.ADMIN,
-                joinedAt = "Jan 1, 2024"
+                joinedAt = 1704067200000 // Jan 1, 2024
             )
         )
 
