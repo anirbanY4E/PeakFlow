@@ -381,6 +381,32 @@ class MockApiService : ApiService {
         // Initialize seed posts
         posts.addAll(seedPosts)
 
+        // Initialize pre-seeded admin user
+        users.add(
+            User(
+                id = "user_admin_001",
+                name = "Admin User",
+                email = "admin@test.com",
+                phone = null,
+                city = "Bangalore",
+                avatarUrl = null,
+                interests = listOf(EventCategory.RUNNING, EventCategory.TREKKING),
+                createdAt = 1704067200000,
+                isVerified = true
+            )
+        )
+
+        // Initialize admin membership for Cubbon Park Runners
+        memberships.add(
+            CommunityMembership(
+                id = "mem_admin_001",
+                userId = "user_admin_001",
+                communityId = "grp_001", // Cubbon Park Morning Runners
+                role = MembershipRole.ADMIN,
+                joinedAt = "Jan 1, 2024"
+            )
+        )
+
         // Initialize seed invite codes
         inviteCodes.addAll(listOf(
             InviteCode(
