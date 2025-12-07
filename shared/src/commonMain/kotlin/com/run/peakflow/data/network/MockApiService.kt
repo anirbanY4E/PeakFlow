@@ -481,6 +481,43 @@ class MockApiService : ApiService {
         }
     }
 
+    override suspend fun signInWithGoogle(
+        idToken: String,
+        email: String,
+        displayName: String?,
+        photoUrl: String?
+    ): User {
+        delay(500)
+
+        // Check if user already exists
+        val existingUser = users.find { it.email == email }
+        if (existingUser != null) {
+            // Update user info if needed
+            val updatedUser = existingUser.copy(
+                name = displayName ?: existingUser.name,
+                avatarUrl = photoUrl ?: existingUser.avatarUrl,
+                isVerified = true // Google users are automatically verified
+            )
+            users[users.indexOf(existingUser)] = updatedUser
+            return updatedUser
+        }
+
+        // Create new user
+        val newUser = User(
+            id = generateId("user"),
+            name = displayName ?: "",
+            email = email,
+            phone = null,
+            city = "Bangalore", // Default city, will be updated in profile setup
+            avatarUrl = photoUrl,
+            interests = emptyList(),
+            createdAt = currentTimestamp(),
+            isVerified = true // Google users are automatically verified
+        )
+        users.add(newUser)
+        return newUser
+    }
+
     override suspend fun verifyOtp(userId: String, otp: String): Boolean {
         delay(400)
         // Mock: accept any 6-digit OTP
