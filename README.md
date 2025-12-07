@@ -1,26 +1,5 @@
 This is a Kotlin Multiplatform project targeting Android, iOS, Server.
 
-## 🆕 Latest Updates - Google Sign-In Integration
-
-**PeakFlow MVP now supports Google Sign-In/Sign-Up!**
-
-### Quick Links
-
-- 📚 **[Google Sign-In Implementation Guide](GOOGLE_SIGNIN_IMPLEMENTATION.md)** - Complete technical documentation
-- 🚀 **[Quick Start Guide](QUICKSTART_GOOGLE_SIGNIN.md)** - Get started in 5 minutes
-- 📊 **[Architecture Diagrams](ARCHITECTURE_DIAGRAM.md)** - Visual system overview
-- ✨ **[Improvements Summary](MVP_IMPROVEMENTS_SUMMARY.md)** - All enhancements made
-- 📝 **[Changes Summary](CHANGES_SUMMARY.md)** - Complete list of modifications
-
-### What's New
-
-✅ **Google Sign-In** on Sign-In and Sign-Up screens  
-✅ **Enhanced Validation** for email, phone, and password  
-✅ **Mock Authentication** for rapid MVP development  
-✅ **Platform-Specific Providers** (Android, iOS, JVM ready)  
-✅ **Production-Ready Architecture** with easy migration path  
-✅ **Improved UX** with loading states and clear error messages
-
 ### For MVP Testing
 
 ```bash
