@@ -46,6 +46,23 @@ class AuthRepository(
         return user
     }
 
+    suspend fun signInWithGoogle(
+        idToken: String,
+        email: String,
+        displayName: String?,
+        photoUrl: String?
+    ): User {
+        val user = api.signInWithGoogle(idToken, email, displayName, photoUrl)
+        userRepository.setCurrentUserId(user.id)
+        _authState.value = _authState.value.copy(
+            isLoggedIn = true,
+            isVerified = true, // Google users are pre-verified
+            hasCompletedOnboarding = user.name.isNotBlank(),
+            currentUserId = user.id
+        )
+        return user
+    }
+
     suspend fun verifyOtp(userId: String, otp: String): Boolean {
         val success = api.verifyOtp(userId, otp)
         if (success) {

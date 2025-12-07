@@ -1,6 +1,7 @@
 package com.run.peakflow.ui.screens
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.presentation.components.SignInComponent
+import com.run.peakflow.ui.components.GoogleSignInButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,7 +163,7 @@ fun SignInScreen(component: SignInComponent) {
             // Sign in button
             Button(
                 onClick = { component.onSignInClick() },
-                enabled = !state.isLoading,
+                enabled = !state.isLoading && !state.isGoogleLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
@@ -176,10 +178,32 @@ fun SignInScreen(component: SignInComponent) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Divider
-            HorizontalDivider(modifier = Modifier.fillMaxWidth())
+            // Divider with "OR"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f))
+                Text(
+                    text = "OR",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Google Sign-In button
+            GoogleSignInButton(
+                text = "Continue with Google",
+                onClick = { component.onGoogleSignInClick() },
+                isLoading = state.isGoogleLoading,
+                enabled = !state.isLoading
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 

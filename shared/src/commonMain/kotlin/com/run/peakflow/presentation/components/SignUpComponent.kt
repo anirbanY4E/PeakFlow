@@ -1,7 +1,10 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.run.peakflow.domain.usecases.GetUserMembershipsUseCase
+import com.run.peakflow.domain.usecases.SignInWithGoogleUseCase
 import com.run.peakflow.domain.usecases.SignUpUseCase
+import com.run.peakflow.domain.validation.AuthValidation
 import com.run.peakflow.presentation.state.SignUpState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,10 +21,13 @@ class SignUpComponent(
     componentContext: ComponentContext,
     private val onNavigateBack: () -> Unit,
     private val onNavigateToOtp: (userId: String, sentTo: String) -> Unit,
-    private val onNavigateToSignIn: () -> Unit
+    private val onNavigateToSignIn: () -> Unit,
+    private val onNavigateToInviteCode: () -> Unit = {}
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val signUp: SignUpUseCase by inject()
+    private val signInWithGoogle: SignInWithGoogleUseCase by inject()
+    private val getUserMemberships: GetUserMembershipsUseCase by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -55,15 +61,31 @@ class SignUpComponent(
     fun onSignUpClick() {
         val currentState = _state.value
 
-        // Validation
+        // Enhanced Validation
         if (currentState.email.isBlank() && currentState.phone.isBlank()) {
             _state.update { it.copy(error = "Email or phone is required") }
             return
         }
-        if (currentState.password.length < 8) {
-            _state.update { it.copy(error = "Password must be at least 8 characters") }
+
+        // Validate email if provided
+        if (currentState.email.isNotBlank() && !AuthValidation.isValidEmail(currentState.email)) {
+            _state.update { it.copy(error = "Invalid email format") }
             return
         }
+
+        // Validate phone if provided
+        if (currentState.phone.isNotBlank() && !AuthValidation.isValidPhone(currentState.phone)) {
+            _state.update { it.copy(error = "Invalid phone format (use 10-15 digits)") }
+            return
+        }
+
+        // Validate password strength
+        val passwordError = AuthValidation.getPasswordStrengthMessage(currentState.password)
+        if (passwordError != null) {
+            _state.update { it.copy(error = passwordError) }
+            return
+        }
+
         if (currentState.password != currentState.confirmPassword) {
             _state.update { it.copy(error = "Passwords do not match") }
             return
@@ -94,5 +116,26 @@ class SignUpComponent(
 
     fun onSignInClick() {
         onNavigateToSignIn()
+    }
+
+    fun onGoogleSignUpClick() {
+        scope.launch {
+            _state.update { it.copy(isGoogleLoading = true, error = null) }
+
+            val result = signInWithGoogle()
+
+            result.onSuccess { user ->
+                _state.update { it.copy(isGoogleLoading = false, isSuccess = true, userId = user.id) }
+
+                // Google users skip OTP verification
+                // Navigate based on profile completion
+                val memberships = getUserMemberships()
+                if (memberships.isEmpty()) {
+                    onNavigateToInviteCode()
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(isGoogleLoading = false, error = error.message) }
+            }
+        }
     }
 }

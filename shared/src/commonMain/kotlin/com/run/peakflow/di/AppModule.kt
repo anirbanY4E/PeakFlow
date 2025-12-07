@@ -1,5 +1,6 @@
 package com.run.peakflow.di
 
+import com.run.peakflow.data.auth.GoogleAuthProvider
 import com.run.peakflow.data.network.ApiService
 import com.run.peakflow.data.network.MockApiService
 import com.run.peakflow.data.repository.AuthRepository
@@ -51,17 +52,24 @@ import com.run.peakflow.domain.usecases.RequestToJoinCommunityUseCase
 import com.run.peakflow.domain.usecases.ResendOtpUseCase
 import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.domain.usecases.SignInUseCase
+import com.run.peakflow.domain.usecases.SignInWithGoogleUseCase
 import com.run.peakflow.domain.usecases.SignUpUseCase
 import com.run.peakflow.domain.usecases.ValidateInviteCodeUseCase
 import com.run.peakflow.domain.usecases.VerifyOtpUseCase
 import com.run.peakflow.presentation.components.RootComponentFactory
 import org.koin.dsl.module
 
+expect fun platformGoogleAuthProvider(): GoogleAuthProvider
+
 val appModule = module {
 
     // ==================== NETWORK ====================
 
     single<ApiService> { MockApiService() }
+
+    // ==================== AUTH PROVIDERS ====================
+
+    single<GoogleAuthProvider> { platformGoogleAuthProvider() }
 
     // ==================== REPOSITORIES ====================
 
@@ -77,6 +85,7 @@ val appModule = module {
 
     factory { SignUpUseCase(get()) }
     factory { SignInUseCase(get()) }
+    factory { SignInWithGoogleUseCase(get(), get()) }
     factory { VerifyOtpUseCase(get()) }
     factory { ResendOtpUseCase(get()) }
     factory { LogoutUseCase(get()) }

@@ -27,6 +27,13 @@ interface ApiService {
         password: String
     ): User?
 
+    suspend fun signInWithGoogle(
+        idToken: String,
+        email: String,
+        displayName: String?,
+        photoUrl: String?
+    ): User
+
     suspend fun verifyOtp(
         userId: String,
         otp: String
