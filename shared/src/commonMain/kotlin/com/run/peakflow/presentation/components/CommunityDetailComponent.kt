@@ -1,6 +1,8 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.run.peakflow.data.repository.EventRepository
+import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.GetCommunityEvents
 import com.run.peakflow.domain.usecases.GetCommunityMembersUseCase
@@ -44,6 +46,8 @@ class CommunityDetailComponent(
     private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
     private val rsvpToEvent: RsvpToEvent by inject()
     private val getEventRsvpStatus: GetEventRsvpStatus by inject()
+    private val eventRepository: EventRepository by inject()
+    private val postRepository: PostRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -52,6 +56,87 @@ class CommunityDetailComponent(
 
     init {
         loadCommunity()
+        observeStateChanges()
+    }
+
+    private fun observeStateChanges() {
+        // Observe event state changes
+        scope.launch {
+            eventRepository.eventStateChanges.collect { change ->
+                _state.update { currentState ->
+                    // Update RSVP status if changed
+                    val newRsvpedIds = if (change.rsvpStatusChanged) {
+                        val isRsvped = getEventRsvpStatus(change.eventId)
+                        if (isRsvped) {
+                            currentState.rsvpedEventIds + change.eventId
+                        } else {
+                            currentState.rsvpedEventIds - change.eventId
+                        }
+                    } else {
+                        currentState.rsvpedEventIds
+                    }
+
+                    currentState.copy(rsvpedEventIds = newRsvpedIds)
+                }
+                // Reload events to get updated participant count
+                if (change.participantCountChanged) {
+                    reloadEventsInternal()
+                }
+            }
+        }
+
+        // Observe post state changes
+        scope.launch {
+            postRepository.postStateChanges.collect { change ->
+                _state.update { currentState ->
+                    // Update like status if changed
+                    val newLikedIds = if (change.likeStatusChanged) {
+                        val isLiked = hasUserLikedPost(change.postId)
+                        if (isLiked) {
+                            currentState.likedPostIds + change.postId
+                        } else {
+                            currentState.likedPostIds - change.postId
+                        }
+                    } else {
+                        currentState.likedPostIds
+                    }
+
+                    currentState.copy(likedPostIds = newLikedIds)
+                }
+                // Reload posts to get updated counts
+                if (change.likesCountChanged || change.commentsCountChanged) {
+                    reloadPostsInternal()
+                }
+            }
+        }
+    }
+
+    private fun reloadEventsInternal() {
+        scope.launch {
+            try {
+                val events = getCommunityEvents(communityId)
+                val rsvpedIds = events.map { it.id }
+                    .filter { getEventRsvpStatus(it) }
+                    .toSet()
+                _state.update { it.copy(events = events, rsvpedEventIds = rsvpedIds) }
+            } catch (e: Exception) {
+                // Silently fail or log error
+            }
+        }
+    }
+
+    private fun reloadPostsInternal() {
+        scope.launch {
+            try {
+                val posts = getCommunityPosts(communityId)
+                val likedIds = posts.map { it.id }
+                    .filter { hasUserLikedPost(it) }
+                    .toSet()
+                _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
+            } catch (e: Exception) {
+                // Silently fail or log error
+            }
+        }
     }
 
     fun loadCommunity() {

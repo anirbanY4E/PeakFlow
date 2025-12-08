@@ -5,10 +5,23 @@ import com.run.peakflow.data.models.Event
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.models.Rsvp
 import com.run.peakflow.data.network.ApiService
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+
+data class EventStateChange(
+    val eventId: String,
+    val rsvpStatusChanged: Boolean = false,
+    val checkInStatusChanged: Boolean = false,
+    val participantCountChanged: Boolean = false,
+    val newParticipantCount: Int? = null
+)
 
 class EventRepository(
     private val api: ApiService
 ) {
+    private val _eventStateChanges = MutableSharedFlow<EventStateChange>(replay = 0)
+    val eventStateChanges: SharedFlow<EventStateChange> = _eventStateChanges.asSharedFlow()
     // ==================== EVENTS ====================
 
     suspend fun createEvent(
@@ -52,11 +65,31 @@ class EventRepository(
     // ==================== RSVP ====================
 
     suspend fun rsvpToEvent(userId: String, eventId: String): Rsvp {
-        return api.rsvpToEvent(userId, eventId)
+        val rsvp = api.rsvpToEvent(userId, eventId)
+        // Emit state change
+        _eventStateChanges.emit(
+            EventStateChange(
+                eventId = eventId,
+                rsvpStatusChanged = true,
+                participantCountChanged = true
+            )
+        )
+        return rsvp
     }
 
     suspend fun cancelRsvp(userId: String, eventId: String): Boolean {
-        return api.cancelRsvp(userId, eventId)
+        val result = api.cancelRsvp(userId, eventId)
+        if (result) {
+            // Emit state change
+            _eventStateChanges.emit(
+                EventStateChange(
+                    eventId = eventId,
+                    rsvpStatusChanged = true,
+                    participantCountChanged = true
+                )
+            )
+        }
+        return result
     }
 
     suspend fun getUserRsvps(userId: String): List<Rsvp> {
@@ -74,7 +107,15 @@ class EventRepository(
     // ==================== ATTENDANCE ====================
 
     suspend fun checkInToEvent(userId: String, eventId: String): Attendance {
-        return api.checkInToEvent(userId, eventId)
+        val attendance = api.checkInToEvent(userId, eventId)
+        // Emit state change
+        _eventStateChanges.emit(
+            EventStateChange(
+                eventId = eventId,
+                checkInStatusChanged = true
+            )
+        )
+        return attendance
     }
 
     suspend fun hasUserCheckedIn(userId: String, eventId: String): Boolean {

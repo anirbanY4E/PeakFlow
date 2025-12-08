@@ -3,10 +3,22 @@ package com.run.peakflow.data.repository
 import com.run.peakflow.data.models.Post
 import com.run.peakflow.data.models.PostComment
 import com.run.peakflow.data.network.ApiService
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+
+data class PostStateChange(
+    val postId: String,
+    val likeStatusChanged: Boolean = false,
+    val commentsCountChanged: Boolean = false,
+    val likesCountChanged: Boolean = false
+)
 
 class PostRepository(
     private val api: ApiService
 ) {
+    private val _postStateChanges = MutableSharedFlow<PostStateChange>(replay = 0)
+    val postStateChanges: SharedFlow<PostStateChange> = _postStateChanges.asSharedFlow()
     // ==================== POSTS ====================
 
     suspend fun getCommunityPosts(communityId: String): List<Post> {
@@ -35,11 +47,33 @@ class PostRepository(
     }
 
     suspend fun likePost(postId: String, userId: String): Boolean {
-        return api.likePost(postId, userId)
+        val result = api.likePost(postId, userId)
+        if (result) {
+            // Emit state change
+            _postStateChanges.emit(
+                PostStateChange(
+                    postId = postId,
+                    likeStatusChanged = true,
+                    likesCountChanged = true
+                )
+            )
+        }
+        return result
     }
 
     suspend fun unlikePost(postId: String, userId: String): Boolean {
-        return api.unlikePost(postId, userId)
+        val result = api.unlikePost(postId, userId)
+        if (result) {
+            // Emit state change
+            _postStateChanges.emit(
+                PostStateChange(
+                    postId = postId,
+                    likeStatusChanged = true,
+                    likesCountChanged = true
+                )
+            )
+        }
+        return result
     }
 
     suspend fun hasUserLikedPost(postId: String, userId: String): Boolean {
@@ -57,7 +91,15 @@ class PostRepository(
         userId: String,
         content: String
     ): PostComment {
-        return api.addComment(postId, userId, content)
+        val comment = api.addComment(postId, userId, content)
+        // Emit state change
+        _postStateChanges.emit(
+            PostStateChange(
+                postId = postId,
+                commentsCountChanged = true
+            )
+        )
+        return comment
     }
 
     suspend fun deleteComment(commentId: String): Boolean {

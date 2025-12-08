@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.GetFeedPostsUseCase
 import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
@@ -25,6 +26,7 @@ class FeedComponent(
     private val getFeedPosts: GetFeedPostsUseCase by inject()
     private val likePost: LikePostUseCase by inject()
     private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
+    private val postRepository: PostRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -33,6 +35,47 @@ class FeedComponent(
 
     init {
         loadFeed()
+        observePostStateChanges()
+    }
+
+    private fun observePostStateChanges() {
+        scope.launch {
+            postRepository.postStateChanges.collect { change ->
+                _state.update { currentState ->
+                    // Update like status if changed
+                    val newLikedIds = if (change.likeStatusChanged) {
+                        val isLiked = hasUserLikedPost(change.postId)
+                        if (isLiked) {
+                            currentState.likedPostIds + change.postId
+                        } else {
+                            currentState.likedPostIds - change.postId
+                        }
+                    } else {
+                        currentState.likedPostIds
+                    }
+
+                    currentState.copy(likedPostIds = newLikedIds)
+                }
+                // Reload posts to get updated counts
+                if (change.likesCountChanged || change.commentsCountChanged) {
+                    reloadPostsInternal()
+                }
+            }
+        }
+    }
+
+    private fun reloadPostsInternal() {
+        scope.launch {
+            try {
+                val posts = getFeedPosts()
+                val likedIds = posts.map { it.id }
+                    .filter { hasUserLikedPost(it) }
+                    .toSet()
+                _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
+            } catch (e: Exception) {
+                // Silently fail or log error
+            }
+        }
     }
 
     fun loadFeed() {
