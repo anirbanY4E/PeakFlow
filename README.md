@@ -1,72 +1,85 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Server.
+# PeakFlow: Production Readiness Roadmap
 
-### For MVP Testing
+PeakFlow is a Kotlin Multiplatform (KMP) fitness community platform. This document outlines the technical transition from the current MVP (Mock API) to a production-grade, reactive architecture with a Django backend.
 
+---
+
+## 🚀 Phase 2: Production Transition Plan
+
+### 1. Backend Architecture (Django)
+The backend will be migrated to **Django REST Framework (DRF)** to leverage its robust ORM and authentication ecosystem.
+
+*   **Database**: PostgreSQL for relational data (Users, Communities, Memberships).
+*   **Authentication**: 
+    *   JWT (JSON Web Tokens) for stateless API access.
+    *   Django-allauth for social (Google) integration.
+*   **Real-time Reactivity**: 
+    *   **Django Channels**: To implement WebSockets for instant updates.
+    *   **Redis**: As a message broker to handle real-time event broadcasting (e.g., "New Post in Cubbon Park Runners").
+
+### 2. KMP Data Layer Refactor
+To ensure the app is state-aware and offline-capable, the KMP data layer will move to a **Repository Pattern with Local Cache**.
+
+*   **SQLDelight**: Implementation of a local SQLite database in `shared`.
+*   **Ktor Client**: Replace `MockApiService` with a real Ktor implementation.
+*   **Single Source of Truth (SSOT)**:
+    *   Repositories will return `Flow<List<Data>>`.
+    *   The Flow will emit data from the local database immediately.
+    *   A background network sync will update the database, which automatically triggers a UI update via the Flow.
+
+### 3. Reactive Event System
+For a production-grade "live" feel, we will implement a tiered reactivity model:
+
+| Trigger | Mechanism | UX Result |
+| :--- | :--- | :--- |
+| **User Action** | Optimistic UI | Immediate feedback (e.g., heart turns red instantly). |
+| **Local Sync** | Repository Flow | Data persists and is consistent across all screens. |
+| **Global Update** | WebSockets (Ktor + Channels) | Instant notification when an Admin approves a join request or an event is created nearby. |
+
+---
+
+## 🛠️ Feature-Specific Production Goals
+
+### For Members
+*   **Reactive Feed**: New posts appear in the feed without manual refresh via WebSocket signals.
+*   **Push Notifications**: Integration with Firebase Cloud Messaging (FCM) for event reminders and community messages.
+*   **Offline Mode**: Full read access to joined communities and booked events without an active internet connection.
+
+### For Admins
+*   **Real-time Moderation**: Join requests appear instantly via a "Pending" badge update.
+*   **Analytics Dashboard**: Django-driven insights into community growth and event attendance rates.
+*   **Invite Management**: Dynamic link generation for invite codes that deep-link directly into the app.
+
+---
+
+## 📐 Standardized UI/UX Specs (Industry Standard)
+The app now follows a strictly enforced **Design System** located in `shared/theme`:
+
+*   **Ratios**: 20dp screen margins, 12dp element gaps, 24dp section gaps.
+*   **Typography**: Defined hierarchy from `screenTitle` (HeadlineMedium) to `labelSecondary` (LabelSmall).
+*   **Consistency**: Shared button heights (56dp) and corner radii (12dp) across all 15+ screens.
+
+---
+
+## 🏗️ Technical Stack (Production)
+*   **Mobile**: Kotlin Multiplatform (Android & iOS)
+*   **UI**: Jetpack Compose / Compose Multiplatform
+*   **Navigation**: Decompose (Component-based routing)
+*   **DI**: Koin
+*   **Backend**: Python / Django / DRF
+*   **Real-time**: Django Channels / WebSockets
+*   **Database**: PostgreSQL + Redis
+*   **Storage**: AWS S3 (for post and community images)
+
+---
+
+## 🏃 Getting Started (MVP Development)
 ```bash
-# Build and run
-.\gradlew.bat :composeApp:build
+# Build Android
+.\gradlew.bat :composeApp:assembleDebug
 
-# The Google Sign-In uses mock authentication
-# No external setup required for testing!
+# Run Unit Tests
+.\gradlew.bat :shared:test
 ```
 
----
-
-## 📱 Project Structure
-
-This is a Kotlin Multiplatform project targeting Android, iOS, Server.
-
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-    - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-    - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-      For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-      the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-      Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-      folder is the appropriate location.
-
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
-
-* [/server](./server/src/main/kotlin) is for the Ktor server application.
-
-* [/shared](./shared/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./shared/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
-
-### Build and Run Android Application
-
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
-
-### Build and Run Server
-
-To build and run the development version of the server, use the run configuration from the run widget
-in your IDE’s toolbar or run it directly from the terminal:
-
-- on macOS/Linux
-  ```shell
-  ./gradlew :server:run
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :server:run
-  ```
-
-### Build and Run iOS Application
-
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
-
----
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+*Current Status: MVP with Uniform UI & Reactive State handling.*

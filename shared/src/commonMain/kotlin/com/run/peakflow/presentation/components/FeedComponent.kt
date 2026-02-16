@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.GetFeedPostsUseCase
 import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
@@ -9,6 +10,7 @@ import com.run.peakflow.presentation.state.FeedState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +36,7 @@ class FeedComponent(
     val state: StateFlow<FeedState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         loadFeed()
         observePostStateChanges()
     }
@@ -41,23 +44,8 @@ class FeedComponent(
     private fun observePostStateChanges() {
         scope.launch {
             postRepository.postStateChanges.collect { change ->
-                _state.update { currentState ->
-                    // Update like status if changed
-                    val newLikedIds = if (change.likeStatusChanged) {
-                        val isLiked = hasUserLikedPost(change.postId)
-                        if (isLiked) {
-                            currentState.likedPostIds + change.postId
-                        } else {
-                            currentState.likedPostIds - change.postId
-                        }
-                    } else {
-                        currentState.likedPostIds
-                    }
-
-                    currentState.copy(likedPostIds = newLikedIds)
-                }
-                // Reload posts to get updated counts
-                if (change.likesCountChanged || change.commentsCountChanged) {
+                // Reload posts if counts changed OR if a new post was created
+                if (change.likesCountChanged || change.commentsCountChanged || change.wasCreated) {
                     reloadPostsInternal()
                 }
             }
@@ -73,7 +61,7 @@ class FeedComponent(
                     .toSet()
                 _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
-                // Silently fail or log error
+                // Silently fail
             }
         }
     }
@@ -81,22 +69,12 @@ class FeedComponent(
     fun loadFeed() {
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-
             try {
                 val posts = getFeedPosts()
-                val likedIds = posts.map { it.id }
-                    .filter { hasUserLikedPost(it) }
-                    .toSet()
-
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        posts = posts,
-                        likedPostIds = likedIds
-                    )
-                }
+                val likedIds = posts.map { it.id }.filter { hasUserLikedPost(it) }.toSet()
+                _state.update { it.copy(isLoading = false, posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message) }
+                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load feed") }
             }
         }
     }
@@ -104,20 +82,10 @@ class FeedComponent(
     fun onRefresh() {
         scope.launch {
             _state.update { it.copy(isRefreshing = true) }
-
             try {
                 val posts = getFeedPosts()
-                val likedIds = posts.map { it.id }
-                    .filter { hasUserLikedPost(it) }
-                    .toSet()
-
-                _state.update {
-                    it.copy(
-                        isRefreshing = false,
-                        posts = posts,
-                        likedPostIds = likedIds
-                    )
-                }
+                val likedIds = posts.map { it.id }.filter { hasUserLikedPost(it) }.toSet()
+                _state.update { it.copy(isRefreshing = false, posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 _state.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -133,23 +101,42 @@ class FeedComponent(
     }
 
     fun onLikeClick(postId: String) {
+        val currentState = _state.value
+        val isCurrentlyLiked = postId in currentState.likedPostIds
+        
+        _state.update { state ->
+            val newLikedIds = if (isCurrentlyLiked) {
+                state.likedPostIds - postId
+            } else {
+                state.likedPostIds + postId
+            }
+            val newPosts = state.posts.map { post ->
+                if (post.id == postId) {
+                    post.copy(
+                        likesCount = if (isCurrentlyLiked) (post.likesCount - 1).coerceAtLeast(0) else post.likesCount + 1
+                    )
+                } else post
+            }
+            state.copy(posts = newPosts, likedPostIds = newLikedIds)
+        }
+
         scope.launch {
             val result = likePost(postId)
-            result.onSuccess { isNowLiked ->
-                _state.update { currentState ->
-                    val newLikedIds = if (isNowLiked) {
-                        currentState.likedPostIds + postId
+            result.onFailure {
+                _state.update { state ->
+                    val revertedLikedIds = if (isCurrentlyLiked) {
+                        state.likedPostIds + postId
                     } else {
-                        currentState.likedPostIds - postId
+                        state.likedPostIds - postId
                     }
-                    val newPosts = currentState.posts.map { post ->
+                    val revertedPosts = state.posts.map { post ->
                         if (post.id == postId) {
                             post.copy(
-                                likesCount = if (isNowLiked) post.likesCount + 1 else post.likesCount - 1
+                                likesCount = if (isCurrentlyLiked) post.likesCount + 1 else (post.likesCount - 1).coerceAtLeast(0)
                             )
                         } else post
                     }
-                    currentState.copy(posts = newPosts, likedPostIds = newLikedIds)
+                    state.copy(posts = revertedPosts, likedPostIds = revertedLikedIds)
                 }
             }
         }

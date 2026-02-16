@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.data.repository.EventRepository
 import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.GetCommunityById
@@ -17,6 +18,7 @@ import com.run.peakflow.presentation.state.CommunityTab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +57,7 @@ class CommunityDetailComponent(
     val state: StateFlow<CommunityDetailState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         loadCommunity()
         observeStateChanges()
     }
@@ -78,8 +81,8 @@ class CommunityDetailComponent(
 
                     currentState.copy(rsvpedEventIds = newRsvpedIds)
                 }
-                // Reload events to get updated participant count
-                if (change.participantCountChanged) {
+                // Reload events if participant count changed OR a new event was created
+                if (change.participantCountChanged || change.wasCreated) {
                     reloadEventsInternal()
                 }
             }
@@ -103,8 +106,8 @@ class CommunityDetailComponent(
 
                     currentState.copy(likedPostIds = newLikedIds)
                 }
-                // Reload posts to get updated counts
-                if (change.likesCountChanged || change.commentsCountChanged) {
+                // Reload posts if counts changed OR a new post was created
+                if (change.likesCountChanged || change.commentsCountChanged || change.wasCreated) {
                     reloadPostsInternal()
                 }
             }
@@ -120,7 +123,7 @@ class CommunityDetailComponent(
                     .toSet()
                 _state.update { it.copy(events = events, rsvpedEventIds = rsvpedIds) }
             } catch (e: Exception) {
-                // Silently fail or log error
+                // Silently fail
             }
         }
     }
@@ -134,7 +137,7 @@ class CommunityDetailComponent(
                     .toSet()
                 _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
-                // Silently fail or log error
+                // Silently fail
             }
         }
     }

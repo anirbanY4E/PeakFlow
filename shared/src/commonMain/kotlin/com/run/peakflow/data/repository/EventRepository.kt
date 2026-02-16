@@ -14,7 +14,8 @@ data class EventStateChange(
     val rsvpStatusChanged: Boolean = false,
     val checkInStatusChanged: Boolean = false,
     val participantCountChanged: Boolean = false,
-    val newParticipantCount: Int? = null
+    val newParticipantCount: Int? = null,
+    val wasCreated: Boolean = false
 )
 
 class EventRepository(
@@ -22,6 +23,7 @@ class EventRepository(
 ) {
     private val _eventStateChanges = MutableSharedFlow<EventStateChange>(replay = 0)
     val eventStateChanges: SharedFlow<EventStateChange> = _eventStateChanges.asSharedFlow()
+
     // ==================== EVENTS ====================
 
     suspend fun createEvent(
@@ -36,10 +38,13 @@ class EventRepository(
         isFree: Boolean = true,
         price: Double? = null
     ): Event {
-        return api.createEvent(
+        val event = api.createEvent(
             communityId, title, description, category,
             date, time, location, maxParticipants, isFree, price
         )
+        // Signal that a new event was created
+        _eventStateChanges.emit(EventStateChange(eventId = event.id, wasCreated = true))
+        return event
     }
 
     suspend fun getEventsByGroupId(groupId: String): List<Event> {
@@ -66,7 +71,6 @@ class EventRepository(
 
     suspend fun rsvpToEvent(userId: String, eventId: String): Rsvp {
         val rsvp = api.rsvpToEvent(userId, eventId)
-        // Emit state change
         _eventStateChanges.emit(
             EventStateChange(
                 eventId = eventId,
@@ -80,7 +84,6 @@ class EventRepository(
     suspend fun cancelRsvp(userId: String, eventId: String): Boolean {
         val result = api.cancelRsvp(userId, eventId)
         if (result) {
-            // Emit state change
             _eventStateChanges.emit(
                 EventStateChange(
                     eventId = eventId,
@@ -108,7 +111,6 @@ class EventRepository(
 
     suspend fun checkInToEvent(userId: String, eventId: String): Attendance {
         val attendance = api.checkInToEvent(userId, eventId)
-        // Emit state change
         _eventStateChanges.emit(
             EventStateChange(
                 eventId = eventId,

@@ -2,16 +2,7 @@ package com.run.peakflow.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,16 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Event
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +19,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.presentation.components.WelcomeComponent
+import com.run.peakflow.ui.theme.PeakFlowSpacing
+import com.run.peakflow.ui.theme.PeakFlowTypography
 
 data class OnboardingPage(
     val icon: ImageVector,
@@ -76,15 +61,15 @@ fun WelcomeScreen(component: WelcomeComponent) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(PeakFlowSpacing.screenHorizontal),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.weight(0.1f))
 
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
-                .weight(1f)
+                .weight(0.7f)
                 .fillMaxWidth()
         ) { page ->
             OnboardingPageContent(onboardingPages[page])
@@ -92,32 +77,31 @@ fun WelcomeScreen(component: WelcomeComponent) {
 
         // Page indicators
         Row(
-            modifier = Modifier.padding(vertical = 24.dp),
+            modifier = Modifier.padding(vertical = PeakFlowSpacing.sectionGap),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             repeat(onboardingPages.size) { index ->
                 Box(
                     modifier = Modifier
-                        .size(if (index == state.currentPage) 24.dp else 8.dp, 8.dp)
+                        .size(if (index == state.currentPage) 20.dp else 8.dp, 8.dp)
                         .clip(CircleShape)
                         .background(
                             if (index == state.currentPage) {
                                 MaterialTheme.colorScheme.primary
                             } else {
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                             }
                         )
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
         Button(
             onClick = { component.onGetStartedClick() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(56.dp),
+            shape = MaterialTheme.shapes.medium
         ) {
             Text(
                 text = "GET STARTED",
@@ -125,7 +109,7 @@ fun WelcomeScreen(component: WelcomeComponent) {
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
 
         TextButton(onClick = { component.onSignInClick() }) {
             Text(
@@ -135,7 +119,7 @@ fun WelcomeScreen(component: WelcomeComponent) {
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
     }
 }
 
@@ -146,27 +130,34 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = page.icon,
-            contentDescription = page.title,
-            modifier = Modifier.size(120.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
+        Surface(
+            modifier = Modifier.size(140.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = page.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(72.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
         Text(
             text = page.title,
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground
+            style = PeakFlowTypography.screenTitle(),
+            textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
 
         Text(
             text = page.description,
-            style = MaterialTheme.typography.bodyLarge,
+            style = PeakFlowTypography.bodyMain(),
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp)

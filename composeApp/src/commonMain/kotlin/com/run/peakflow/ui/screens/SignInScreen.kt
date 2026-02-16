@@ -1,33 +1,13 @@
 package com.run.peakflow.ui.screens
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,6 +20,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.presentation.components.SignInComponent
 import com.run.peakflow.ui.components.GoogleSignInButton
+import com.run.peakflow.ui.theme.PeakFlowSpacing
+import com.run.peakflow.ui.theme.PeakFlowTypography
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,10 +34,7 @@ fun SignInScreen(component: SignInComponent) {
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = { component.onBackClick() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 }
             )
@@ -65,139 +44,97 @@ fun SignInScreen(component: SignInComponent) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = PeakFlowSpacing.screenHorizontal)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
             Text(
                 text = "Welcome Back",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
+                style = PeakFlowTypography.screenTitle(),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Start
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
             Text(
-                text = "Sign in to continue",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "Sign in to continue your fitness journey",
+                style = PeakFlowTypography.bodyMain(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Start
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Email/Phone field
             OutlinedTextField(
                 value = state.emailOrPhone,
                 onValueChange = { component.onEmailOrPhoneChanged(it) },
                 label = { Text("Email or Phone") },
-                leadingIcon = {
-                    Icon(Icons.Default.Email, contentDescription = null)
-                },
+                leadingIcon = { Icon(Icons.Default.Email, null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
 
-            // Password field
             OutlinedTextField(
                 value = state.password,
                 onValueChange = { component.onPasswordChanged(it) },
                 label = { Text("Password") },
-                leadingIcon = {
-                    Icon(Icons.Default.Lock, contentDescription = null)
-                },
+                leadingIcon = { Icon(Icons.Default.Lock, null) },
                 trailingIcon = {
                     IconButton(onClick = { component.onTogglePasswordVisibility() }) {
-                        Icon(
-                            imageVector = if (state.isPasswordVisible) {
-                                Icons.Default.VisibilityOff
-                            } else {
-                                Icons.Default.Visibility
-                            },
-                            contentDescription = "Toggle password visibility"
-                        )
+                        Icon(if (state.isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
                     }
                 },
-                visualTransformation = if (state.isPasswordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
+                visualTransformation = if (state.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Forgot password
             TextButton(
                 onClick = { component.onForgotPasswordClick() },
                 modifier = Modifier.align(Alignment.End)
             ) {
-                Text(
-                    text = "Forgot Password?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Text("Forgot Password?", style = MaterialTheme.typography.labelLarge)
             }
 
-            // Error message
             if (state.error != null) {
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = state.error!!,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
-            // Sign in button
             Button(
                 onClick = { component.onSignInClick() },
                 enabled = !state.isLoading && !state.isGoogleLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = MaterialTheme.shapes.medium
             ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.height(24.dp)
-                    )
-                } else {
-                    Text("SIGN IN")
-                }
+                if (state.isLoading) CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                else Text("SIGN IN")
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
-            // Divider with "OR"
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 HorizontalDivider(modifier = Modifier.weight(1f))
-                Text(
-                    text = "OR",
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("OR", modifier = Modifier.padding(horizontal = 16.dp), style = PeakFlowTypography.labelSecondary())
                 HorizontalDivider(modifier = Modifier.weight(1f))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
-            // Google Sign-In button
             GoogleSignInButton(
                 text = "Continue with Google",
                 onClick = { component.onGoogleSignInClick() },
@@ -205,18 +142,11 @@ fun SignInScreen(component: SignInComponent) {
                 enabled = !state.isLoading
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
-            // Sign up link
             TextButton(onClick = { component.onSignUpClick() }) {
-                Text(
-                    text = "Don't have an account? Sign Up",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Text("Don't have an account? Sign Up", style = MaterialTheme.typography.bodyMedium)
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

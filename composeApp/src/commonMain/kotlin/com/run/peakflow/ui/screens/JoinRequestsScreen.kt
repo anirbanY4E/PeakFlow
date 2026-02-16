@@ -1,16 +1,6 @@
 package com.run.peakflow.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -20,17 +10,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.presentation.components.JoinRequestsComponent
 import com.run.peakflow.presentation.state.JoinRequestWithUser
+import com.run.peakflow.ui.components.EmptyView
+import com.run.peakflow.ui.theme.PeakFlowSpacing
+import com.run.peakflow.ui.theme.PeakFlowTypography
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,13 +32,10 @@ fun JoinRequestsScreen(component: JoinRequestsComponent) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Join Requests") },
+                title = { Text("Join Requests", style = PeakFlowTypography.bodyTitle()) },
                 navigationIcon = {
                     IconButton(onClick = { component.onBackClick() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 }
             )
@@ -63,75 +43,28 @@ fun JoinRequestsScreen(component: JoinRequestsComponent) {
     ) { padding ->
         when {
             state.isLoading && state.pendingRequests.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
-            state.error != null && state.pendingRequests.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = state.error ?: "An error occurred",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
             state.pendingRequests.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PersonAdd,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No pending requests",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "All caught up!",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                EmptyView(
+                    title = "All caught up!",
+                    message = "No pending join requests at the moment.",
+                    icon = { Icon(Icons.Default.PersonAdd, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.outline) }
+                )
             }
             else -> {
                 PullToRefreshBox(
                     isRefreshing = state.isRefreshing,
                     onRefresh = { component.onRefresh() },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
+                    modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxSize().padding(horizontal = PeakFlowSpacing.screenHorizontal),
+                        verticalArrangement = Arrangement.spacedBy(PeakFlowSpacing.elementGap)
                     ) {
                         item { Spacer(modifier = Modifier.height(8.dp)) }
-
                         items(state.pendingRequests, key = { it.request.id }) { requestWithUser ->
                             JoinRequestCard(
                                 requestWithUser = requestWithUser,
@@ -140,8 +73,6 @@ fun JoinRequestsScreen(component: JoinRequestsComponent) {
                                 onRejectClick = { component.onRejectClick(requestWithUser.request.id) }
                             )
                         }
-
-                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
                 }
             }
@@ -150,79 +81,35 @@ fun JoinRequestsScreen(component: JoinRequestsComponent) {
 }
 
 @Composable
-private fun JoinRequestCard(
-    requestWithUser: JoinRequestWithUser,
-    isProcessing: Boolean,
-    onApproveClick: () -> Unit,
-    onRejectClick: () -> Unit
-) {
+private fun JoinRequestCard(requestWithUser: JoinRequestWithUser, isProcessing: Boolean, onApproveClick: () -> Unit, onRejectClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = CardDefaults.outlinedCardBorder()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = requestWithUser.user?.name ?: "Unknown User",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = "Requested to join",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            if (isProcessing) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            } else {
-                IconButton(
-                    onClick = onRejectClick,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Reject",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+        ListItem(
+            headlineContent = { Text(requestWithUser.user?.name ?: "Unknown User", style = PeakFlowTypography.bodyTitle()) },
+            supportingContent = { Text("Wants to join community", style = PeakFlowTypography.labelSecondary()) },
+            leadingContent = {
+                Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Icon(Icons.Default.Person, null, modifier = Modifier.padding(8.dp))
                 }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                IconButton(
-                    onClick = onApproveClick,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Approve",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+            },
+            trailingContent = {
+                if (isProcessing) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    Row {
+                        IconButton(onClick = onRejectClick) {
+                            Icon(Icons.Default.Close, "Reject", tint = MaterialTheme.colorScheme.error)
+                        }
+                        IconButton(onClick = onApproveClick) {
+                            Icon(Icons.Default.Check, "Approve", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
             }
-        }
+        )
     }
 }

@@ -11,7 +11,8 @@ data class PostStateChange(
     val postId: String,
     val likeStatusChanged: Boolean = false,
     val commentsCountChanged: Boolean = false,
-    val likesCountChanged: Boolean = false
+    val likesCountChanged: Boolean = false,
+    val wasCreated: Boolean = false
 )
 
 class PostRepository(
@@ -19,6 +20,7 @@ class PostRepository(
 ) {
     private val _postStateChanges = MutableSharedFlow<PostStateChange>(replay = 0)
     val postStateChanges: SharedFlow<PostStateChange> = _postStateChanges.asSharedFlow()
+
     // ==================== POSTS ====================
 
     suspend fun getCommunityPosts(communityId: String): List<Post> {
@@ -39,7 +41,10 @@ class PostRepository(
         content: String,
         imageUrl: String?
     ): Post {
-        return api.createPost(communityId, authorId, content, imageUrl)
+        val post = api.createPost(communityId, authorId, content, imageUrl)
+        // Signal that a new post was created
+        _postStateChanges.emit(PostStateChange(postId = post.id, wasCreated = true))
+        return post
     }
 
     suspend fun deletePost(postId: String): Boolean {
@@ -49,7 +54,6 @@ class PostRepository(
     suspend fun likePost(postId: String, userId: String): Boolean {
         val result = api.likePost(postId, userId)
         if (result) {
-            // Emit state change
             _postStateChanges.emit(
                 PostStateChange(
                     postId = postId,
@@ -64,7 +68,6 @@ class PostRepository(
     suspend fun unlikePost(postId: String, userId: String): Boolean {
         val result = api.unlikePost(postId, userId)
         if (result) {
-            // Emit state change
             _postStateChanges.emit(
                 PostStateChange(
                     postId = postId,
@@ -92,7 +95,6 @@ class PostRepository(
         content: String
     ): PostComment {
         val comment = api.addComment(postId, userId, content)
-        // Emit state change
         _postStateChanges.emit(
             PostStateChange(
                 postId = postId,
