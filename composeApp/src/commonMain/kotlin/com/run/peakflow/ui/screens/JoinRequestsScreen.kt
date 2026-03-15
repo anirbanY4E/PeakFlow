@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.presentation.components.JoinRequestsComponent
 import com.run.peakflow.presentation.state.JoinRequestWithUser
+import com.run.peakflow.ui.components.AvatarImage
 import com.run.peakflow.ui.components.EmptyView
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
@@ -92,9 +93,11 @@ private fun JoinRequestCard(requestWithUser: JoinRequestWithUser, isProcessing: 
             headlineContent = { Text(requestWithUser.user?.name ?: "Unknown User", style = PeakFlowTypography.bodyTitle()) },
             supportingContent = { Text("Wants to join community", style = PeakFlowTypography.labelSecondary()) },
             leadingContent = {
-                Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(Icons.Default.Person, null, modifier = Modifier.padding(8.dp))
-                }
+                AvatarImage(
+                    imageUrl = requestWithUser.user?.avatarUrl,
+                    size = 40.dp,
+                    contentDescription = "${requestWithUser.user?.name ?: "User"}'s avatar"
+                )
             },
             trailingContent = {
                 if (isProcessing) {

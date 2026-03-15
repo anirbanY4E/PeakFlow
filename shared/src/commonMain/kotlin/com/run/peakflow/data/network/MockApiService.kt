@@ -14,6 +14,8 @@ import com.run.peakflow.data.models.RequestStatus
 import com.run.peakflow.data.models.Rsvp
 import com.run.peakflow.data.models.User
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlin.random.Random
 
 class MockApiService : ApiService {
@@ -32,7 +34,7 @@ class MockApiService : ApiService {
 
     // ==================== SEED DATA ====================
 
-    private val communities = listOf(
+    private val communities = mutableListOf(
         CommunityGroup(
             id = "grp_001",
             title = "Cubbon Park Morning Runners",
@@ -536,6 +538,21 @@ class MockApiService : ApiService {
         return users.any { it.id == userId }
     }
 
+    override suspend fun getSessionUserId(): String? {
+        return "mock_user_123"
+    }
+
+    override suspend fun logout() {
+        delay(200)
+    }
+
+    // ==================== STORAGE ====================
+
+    override suspend fun uploadImage(bucket: String, fileName: String, imageData: ByteArray): String {
+        delay(800)
+        return "https://mock-storage.com/$bucket/$fileName"
+    }
+
     // ==================== USER ====================
 
     override suspend fun getUser(userId: String): User? {
@@ -671,6 +688,14 @@ class MockApiService : ApiService {
         return communities
     }
 
+    override suspend fun getUserCommunities(userId: String): List<Pair<CommunityGroup, MembershipRole>> {
+        delay(400)
+        val userMemberships = memberships.filter { it.userId == userId && it.role != MembershipRole.PENDING }
+        return userMemberships.mapNotNull { membership ->
+            communities.find { it.id == membership.communityId }?.let { it to membership.role }
+        }
+    }
+
     override suspend fun getCommunitiesByCity(city: String): List<CommunityGroup> {
         delay(400)
         return communities.filter { it.city.equals(city, ignoreCase = true) }
@@ -686,10 +711,59 @@ class MockApiService : ApiService {
         excludeUserCommunities: List<String>
     ): List<CommunityGroup> {
         delay(400)
-        return communities.filter {
-            it.city.equals(city, ignoreCase = true) &&
-                    it.id !in excludeUserCommunities
+        return communities.filter { it.city.equals(city, ignoreCase = true) && !excludeUserCommunities.contains(it.id) }
+    }
+
+    override suspend fun searchCommunities(
+        query: String,
+        category: EventCategory?,
+        city: String
+    ): List<CommunityGroup> {
+        delay(300)
+        return communities.filter { 
+            (it.title.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true)) &&
+            (category == null || it.category == category) &&
+            (city.isEmpty() || it.city.equals(city, ignoreCase = true))
         }
+    }
+
+    override suspend fun createCommunity(
+        title: String,
+        description: String,
+        category: EventCategory,
+        city: String,
+        rules: List<String>,
+        createdBy: String,
+        imageUrl: String?,
+        coverUrl: String?
+    ): CommunityGroup {
+        delay(500)
+        val newCommunity = CommunityGroup(
+            id = "group_${communities.size + 1}",
+            title = title,
+            description = description,
+            category = category,
+            city = city,
+            memberCount = 1,
+            createdBy = createdBy,
+            imageUrl = imageUrl,
+            coverUrl = coverUrl,
+            rules = rules,
+            createdAt = 0L
+        )
+        communities.add(newCommunity)
+        
+        // Auto-join creator
+        memberships.add(
+            CommunityMembership(
+                id = "mem_${memberships.size + 1}",
+                userId = createdBy,
+                communityId = newCommunity.id,
+                role = com.run.peakflow.data.models.MembershipRole.ADMIN,
+                joinedAt = newCommunity.createdAt
+            )
+        )
+        return newCommunity
     }
 
     // ==================== MEMBERSHIPS ====================
@@ -940,7 +1014,6 @@ class MockApiService : ApiService {
                     commentsCount = (posts[postIndex].commentsCount - 1).coerceAtLeast(0)
                 )
             }
-            return true
         }
         return false
     }
@@ -957,12 +1030,12 @@ class MockApiService : ApiService {
         location: String,
         maxParticipants: Int,
         isFree: Boolean,
-        price: Double?
+        price: Double?,
+        imageUrl: String?
     ): Event {
         delay(500)
-
         val event = Event(
-            id = generateId("event"),
+            id = "event_${events.size + 1}",
             groupId = communityId,
             title = title,
             description = description,
@@ -973,14 +1046,13 @@ class MockApiService : ApiService {
             location = location,
             latitude = null,
             longitude = null,
-            imageUrl = null,
+            imageUrl = imageUrl,
             maxParticipants = maxParticipants,
             currentParticipants = 0,
             isFree = isFree,
             price = price,
-            createdAt = currentTimestamp()
+            createdAt = 0L
         )
-
         events.add(event)
         return event
     }
@@ -1099,5 +1171,19 @@ class MockApiService : ApiService {
     override suspend fun getUserAttendanceHistory(userId: String): List<Attendance> {
         delay(300)
         return attendances.filter { it.userId == userId }
+    }
+
+    // ==================== REALTIME ====================
+
+    override fun observePosts(communityId: String): Flow<Post> {
+        return emptyFlow()
+    }
+
+    override fun observeComments(postId: String): Flow<PostComment> {
+        return emptyFlow()
+    }
+
+    override fun observeJoinRequests(communityId: String): Flow<JoinRequest> {
+        return emptyFlow()
     }
 }

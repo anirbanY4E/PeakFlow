@@ -1,6 +1,8 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.AddCommentUseCase
 import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.GetPostByIdUseCase
@@ -11,6 +13,7 @@ import com.run.peakflow.presentation.state.PostDetailState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +34,7 @@ class PostDetailComponent(
     private val likePost: LikePostUseCase by inject()
     private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
     private val addComment: AddCommentUseCase by inject()
+    private val postRepository: PostRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -38,7 +42,9 @@ class PostDetailComponent(
     val state: StateFlow<PostDetailState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         loadPost()
+        observeRealtimeComments()
     }
 
     fun loadPost() {
@@ -124,6 +130,27 @@ class PostDetailComponent(
                 }
             }.onFailure { error ->
                 _state.update { it.copy(isCommentLoading = false, error = error.message) }
+            }
+        }
+    }
+
+    private fun observeRealtimeComments() {
+        scope.launch {
+            postRepository.observeNewComments(postId).collect { newComment ->
+                _state.update { currentState ->
+                    // Avoid duplicates (local comments are already added optimistically)
+                    if (currentState.comments.any { it.id == newComment.id }) {
+                        currentState
+                    } else {
+                        val newPost = currentState.post?.copy(
+                            commentsCount = currentState.post.commentsCount + 1
+                        )
+                        currentState.copy(
+                            comments = currentState.comments + newComment,
+                            post = newPost
+                        )
+                    }
+                }
             }
         }
     }

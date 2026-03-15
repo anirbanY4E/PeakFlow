@@ -2,7 +2,8 @@ package com.run.peakflow.di
 
 import com.run.peakflow.data.auth.GoogleAuthProvider
 import com.run.peakflow.data.network.ApiService
-import com.run.peakflow.data.network.MockApiService
+import com.run.peakflow.data.network.SupabaseApiService
+import com.run.peakflow.data.network.SupabaseConfig
 import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.data.repository.CommunityRepository
 import com.run.peakflow.data.repository.EventRepository
@@ -65,7 +66,7 @@ val appModule = module {
 
     // ==================== NETWORK ====================
 
-    single<ApiService> { MockApiService() }
+    single<ApiService> { SupabaseApiService(SupabaseConfig.client) }
 
     // ==================== AUTH PROVIDERS ====================
 

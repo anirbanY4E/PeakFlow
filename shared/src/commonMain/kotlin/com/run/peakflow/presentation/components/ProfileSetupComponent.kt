@@ -46,8 +46,8 @@ class ProfileSetupComponent(
         }
     }
 
-    fun onAvatarChanged(avatarUrl: String?) {
-        _state.update { it.copy(avatarUrl = avatarUrl) }
+    fun onAvatarChanged(avatarBytes: ByteArray?) {
+        _state.update { it.copy(avatarBytes = avatarBytes) }
     }
 
     fun onCompleteClick() {
@@ -65,7 +65,7 @@ class ProfileSetupComponent(
                 name = currentState.name,
                 city = currentState.city,
                 interests = currentState.selectedInterests,
-                avatarUrl = currentState.avatarUrl
+                avatarBytes = currentState.avatarBytes
             )
 
             result.onSuccess {

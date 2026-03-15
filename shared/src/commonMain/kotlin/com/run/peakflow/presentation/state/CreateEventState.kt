@@ -13,6 +13,7 @@ data class CreateEventState(
     val maxParticipants: Int = 30,
     val isFree: Boolean = true,
     val price: Double? = null,
+    val imageBytes: ByteArray? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
     val isSuccess: Boolean = false

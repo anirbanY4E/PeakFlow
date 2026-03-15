@@ -85,7 +85,7 @@ class AuthRepository(
         )
     }
 
-    fun logout() {
+    suspend fun logout() {
         userRepository.logout()
         _authState.value = AuthState()
     }

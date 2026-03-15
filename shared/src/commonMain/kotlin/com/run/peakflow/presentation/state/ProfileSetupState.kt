@@ -6,7 +6,7 @@ data class ProfileSetupState(
     val name: String = "",
     val city: String = "Bangalore",
     val selectedInterests: List<EventCategory> = emptyList(),
-    val avatarUrl: String? = null,
+    val avatarBytes: ByteArray? = null,
     val availableCities: List<String> = listOf("Bangalore"),
     val availableInterests: List<EventCategory> = EventCategory.entries,
     val isLoading: Boolean = false,

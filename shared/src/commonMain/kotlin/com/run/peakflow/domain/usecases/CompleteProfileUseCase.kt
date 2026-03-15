@@ -13,7 +13,7 @@ class CompleteProfileUseCase(
         name: String,
         city: String,
         interests: List<EventCategory>,
-        avatarUrl: String? = null
+        avatarBytes: ByteArray? = null
     ): Result<User> {
         return try {
             val userId = userRepository.getCurrentUserId()
@@ -23,7 +23,7 @@ class CompleteProfileUseCase(
                 return Result.failure(Exception("Name must be at least 2 characters"))
             }
 
-            val user = userRepository.completeProfile(userId, name, city, interests, avatarUrl)
+            val user = userRepository.completeProfile(userId, name, city, interests, avatarBytes)
             authRepository.updateAuthState(hasCompletedOnboarding = true)
             Result.success(user)
         } catch (e: Exception) {

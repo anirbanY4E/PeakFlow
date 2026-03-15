@@ -1,6 +1,8 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.repository.MembershipRepository
 import com.run.peakflow.domain.usecases.ApproveJoinRequestUseCase
 import com.run.peakflow.domain.usecases.GetPendingJoinRequestsUseCase
 import com.run.peakflow.domain.usecases.GetUserByIdUseCase
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -28,6 +31,7 @@ class JoinRequestsComponent(
     private val approveJoinRequest: ApproveJoinRequestUseCase by inject()
     private val rejectJoinRequest: RejectJoinRequestUseCase by inject()
     private val getUserById: GetUserByIdUseCase by inject()
+    private val membershipRepository: MembershipRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -35,7 +39,9 @@ class JoinRequestsComponent(
     val state: StateFlow<JoinRequestsState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         loadRequests()
+        observeRealtimeJoinRequests()
     }
 
     fun loadRequests() {
@@ -119,6 +125,27 @@ class JoinRequestsComponent(
                         processingRequestIds = it.processingRequestIds - requestId,
                         error = error.message
                     )
+                }
+            }
+        }
+    }
+
+    private fun observeRealtimeJoinRequests() {
+        scope.launch {
+            membershipRepository.observeNewJoinRequests(communityId).collect { newRequest ->
+                // Fetch user details for the new request
+                val user = try { getUserById(newRequest.userId) } catch (_: Exception) { null }
+                val requestWithUser = JoinRequestWithUser(request = newRequest, user = user)
+
+                _state.update { currentState ->
+                    // Avoid duplicates
+                    if (currentState.pendingRequests.any { it.request.id == newRequest.id }) {
+                        currentState
+                    } else {
+                        currentState.copy(
+                            pendingRequests = listOf(requestWithUser) + currentState.pendingRequests
+                        )
+                    }
                 }
             }
         }

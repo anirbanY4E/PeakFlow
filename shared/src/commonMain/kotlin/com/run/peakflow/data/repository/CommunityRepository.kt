@@ -2,6 +2,7 @@ package com.run.peakflow.data.repository
 
 import com.run.peakflow.data.models.CommunityGroup
 import com.run.peakflow.data.network.ApiService
+import kotlin.time.Clock
 
 class CommunityRepository(
     private val api: ApiService
@@ -23,6 +24,32 @@ class CommunityRepository(
         excludeUserCommunities: List<String>
     ): List<CommunityGroup> {
         return api.getDiscoverCommunities(city, excludeUserCommunities)
+    }
+
+    suspend fun createCommunity(
+        title: String,
+        description: String,
+        category: com.run.peakflow.data.models.EventCategory,
+        city: String,
+        rules: String,
+        createdBy: String,
+        imageBytes: ByteArray? = null,
+        coverBytes: ByteArray? = null
+    ): CommunityGroup {
+        var imageUrl: String? = null
+        var coverUrl: String? = null
+        val time = Clock.System.now().toEpochMilliseconds()
+        
+        if (imageBytes != null) {
+            val fileName = "community_${createdBy}_image_${time}.jpg"
+            imageUrl = api.uploadImage("community-images", fileName, imageBytes)
+        }
+        if (coverBytes != null) {
+            val fileName = "community_${createdBy}_cover_${time}.jpg"
+            coverUrl = api.uploadImage("community-images", fileName, coverBytes)
+        }
+        val rulesList = rules.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+        return api.createCommunity(title, description, category, city, rulesList, createdBy, imageUrl, coverUrl)
     }
 
     suspend fun getUserCommunities(

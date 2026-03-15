@@ -6,6 +6,8 @@ import com.run.peakflow.data.network.ApiService
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlin.time.Clock as KTimeClock
+import kotlinx.datetime.Clock
 
 data class PostStateChange(
     val postId: String,
@@ -39,8 +41,14 @@ class PostRepository(
         communityId: String,
         authorId: String,
         content: String,
-        imageUrl: String?
+        imageBytes: ByteArray? = null
     ): Post {
+        var imageUrl: String? = null
+        if (imageBytes != null) {
+            val time = KTimeClock.System.now().toEpochMilliseconds()
+            val fileName = "post_${authorId}_${time}.jpg"
+            imageUrl = api.uploadImage("post-images", fileName, imageBytes)
+        }
         val post = api.createPost(communityId, authorId, content, imageUrl)
         // Signal that a new post was created
         _postStateChanges.emit(PostStateChange(postId = post.id, wasCreated = true))
@@ -106,5 +114,15 @@ class PostRepository(
 
     suspend fun deleteComment(commentId: String): Boolean {
         return api.deleteComment(commentId)
+    }
+
+    // ==================== REALTIME ====================
+
+    fun observeNewPosts(communityId: String): kotlinx.coroutines.flow.Flow<Post> {
+        return api.observePosts(communityId)
+    }
+
+    fun observeNewComments(postId: String): kotlinx.coroutines.flow.Flow<PostComment> {
+        return api.observeComments(postId)
     }
 }

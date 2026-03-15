@@ -8,6 +8,8 @@ import com.run.peakflow.data.network.ApiService
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.datetime.Clock
+import kotlin.time.Clock as KTimeClock // Added and aliased to avoid conflict
 
 data class EventStateChange(
     val eventId: String,
@@ -36,11 +38,21 @@ class EventRepository(
         location: String,
         maxParticipants: Int,
         isFree: Boolean = true,
-        price: Double? = null
+        price: Double? = null,
+        imageBytes: ByteArray? = null
     ): Event {
+        var imageUrl: String? = null
+        if (imageBytes != null) {
+            val time = KTimeClock.System.now().toEpochMilliseconds()
+            val fileName = "event_${communityId}_${time}.jpg"
+            imageUrl = api.uploadImage("event-images", fileName, imageBytes)
+        }
+        
+        // Note: The KMP API currently does not have imageUrl in createEvent signature.
+        // Let's modify ApiService & SupabaseApiService to support it!
         val event = api.createEvent(
             communityId, title, description, category,
-            date, time, location, maxParticipants, isFree, price
+            date, time, location, maxParticipants, isFree, price, imageUrl
         )
         // Signal that a new event was created
         _eventStateChanges.emit(EventStateChange(eventId = event.id, wasCreated = true))

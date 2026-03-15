@@ -60,6 +60,7 @@ class CommunityDetailComponent(
         lifecycle.doOnDestroy { scope.cancel() }
         loadCommunity()
         observeStateChanges()
+        observeRealtimePosts()
     }
 
     private fun observeStateChanges() {
@@ -138,6 +139,21 @@ class CommunityDetailComponent(
                 _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 // Silently fail
+            }
+        }
+    }
+
+    private fun observeRealtimePosts() {
+        scope.launch {
+            postRepository.observeNewPosts(communityId).collect { newPost ->
+                _state.update { currentState ->
+                    // Avoid duplicates (local creates are already handled by postStateChanges)
+                    if (currentState.posts.any { it.id == newPost.id }) {
+                        currentState
+                    } else {
+                        currentState.copy(posts = listOf(newPost) + currentState.posts)
+                    }
+                }
             }
         }
     }

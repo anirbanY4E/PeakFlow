@@ -14,7 +14,7 @@ class CreatePostUseCase(
     suspend operator fun invoke(
         communityId: String,
         content: String,
-        imageUrl: String? = null
+        imageBytes: ByteArray? = null
     ): Result<Post> {
         return try {
             val userId = userRepository.getCurrentUserId()
@@ -30,7 +30,7 @@ class CreatePostUseCase(
                 return Result.failure(Exception("Post content cannot be empty"))
             }
 
-            val post = postRepository.createPost(communityId, userId, content, imageUrl)
+            val post = postRepository.createPost(communityId, userId, content, imageBytes)
             Result.success(post)
         } catch (e: Exception) {
             Result.failure(e)

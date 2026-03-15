@@ -50,4 +50,10 @@ class MembershipRepository(
     suspend fun hasUserRequestedToJoin(userId: String, communityId: String): Boolean {
         return api.hasUserRequestedToJoin(userId, communityId)
     }
+
+    // ==================== REALTIME ====================
+
+    fun observeNewJoinRequests(communityId: String): kotlinx.coroutines.flow.Flow<JoinRequest> {
+        return api.observeJoinRequests(communityId)
+    }
 }

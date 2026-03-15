@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -17,6 +18,8 @@ class SettingsComponent(
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val logoutUseCase: LogoutUseCase by inject()
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
 
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
@@ -46,8 +49,10 @@ class SettingsComponent(
     }
 
     fun onLogoutConfirm() {
-        logoutUseCase()
-        onLogout()
+        scope.launch {
+            logoutUseCase()
+            onLogout()
+        }
     }
 
     fun onLogoutCancel() {

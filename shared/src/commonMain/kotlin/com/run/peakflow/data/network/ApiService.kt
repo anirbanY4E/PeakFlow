@@ -41,6 +41,18 @@ interface ApiService {
 
     suspend fun resendOtp(userId: String): Boolean
 
+    suspend fun getSessionUserId(): String?
+
+    suspend fun logout()
+
+    // ==================== STORAGE ====================
+
+    suspend fun uploadImage(
+        bucket: String,
+        fileName: String,
+        imageData: ByteArray
+    ): String
+
     // ==================== USER ====================
 
     suspend fun getUser(userId: String): User?
@@ -74,6 +86,8 @@ interface ApiService {
 
     suspend fun getCommunities(): List<CommunityGroup>
 
+    suspend fun getUserCommunities(userId: String): List<Pair<CommunityGroup, com.run.peakflow.data.models.MembershipRole>>
+
     suspend fun getCommunitiesByCity(city: String): List<CommunityGroup>
 
     suspend fun getCommunityById(communityId: String): CommunityGroup?
@@ -82,6 +96,23 @@ interface ApiService {
         city: String,
         excludeUserCommunities: List<String>
     ): List<CommunityGroup>
+
+    suspend fun searchCommunities(
+        query: String,
+        category: EventCategory?,
+        city: String
+    ): List<CommunityGroup>
+
+    suspend fun createCommunity(
+        title: String,
+        description: String,
+        category: EventCategory,
+        city: String,
+        rules: List<String>,
+        createdBy: String,
+        imageUrl: String?,
+        coverUrl: String?
+    ): CommunityGroup
 
     // ==================== MEMBERSHIPS ====================
 
@@ -160,7 +191,8 @@ interface ApiService {
         location: String,
         maxParticipants: Int,
         isFree: Boolean,
-        price: Double?
+        price: Double?,
+        imageUrl: String?
     ): Event
 
     suspend fun getEventsByGroupId(groupId: String): List<Event>
@@ -196,4 +228,12 @@ interface ApiService {
     suspend fun getEventAttendance(eventId: String): List<Attendance>
 
     suspend fun getUserAttendanceHistory(userId: String): List<Attendance>
+
+    // ==================== REALTIME ====================
+
+    fun observePosts(communityId: String): kotlinx.coroutines.flow.Flow<Post>
+
+    fun observeComments(postId: String): kotlinx.coroutines.flow.Flow<PostComment>
+
+    fun observeJoinRequests(communityId: String): kotlinx.coroutines.flow.Flow<JoinRequest>
 }

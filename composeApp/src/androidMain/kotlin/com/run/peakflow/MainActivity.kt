@@ -11,6 +11,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.run.peakflow.utils.ActivityProvider.currentActivity = this
 
         // Use retainedComponent to keep the root component alive across configuration changes
         val rootComponent = retainedComponent { componentContext ->
@@ -21,6 +22,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             App(rootComponent)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (com.run.peakflow.utils.ActivityProvider.currentActivity == this) {
+            com.run.peakflow.utils.ActivityProvider.currentActivity = null
         }
     }
 }

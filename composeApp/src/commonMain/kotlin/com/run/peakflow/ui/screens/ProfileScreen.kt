@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.presentation.components.ProfileComponent
 import com.run.peakflow.presentation.state.ProfileStats
+import com.run.peakflow.ui.components.AvatarImage
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -49,9 +50,11 @@ fun ProfileScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Surface(modifier = Modifier.size(80.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                        Icon(Icons.Default.Person, null, modifier = Modifier.padding(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
+                    AvatarImage(
+                        imageUrl = state.user!!.avatarUrl,
+                        size = 80.dp,
+                        contentDescription = "${state.user!!.name}'s profile picture"
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(state.user!!.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Text(state.user!!.city, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

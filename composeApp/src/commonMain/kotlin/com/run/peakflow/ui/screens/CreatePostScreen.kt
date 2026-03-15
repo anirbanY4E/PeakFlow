@@ -53,13 +53,11 @@ fun CreatePostScreen(component: CreatePostComponent) {
 
             Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
 
-            OutlinedTextField(
-                value = state.imageUrl ?: "",
-                onValueChange = { component.onImageUrlChanged(it.ifBlank { null }) },
-                label = { Text("Image URL (optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium
+            // TODO: Add Image Picker here to call component.onImageChanged(bytes)
+            Text(
+                text = "Image attachment supported via image picker",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (state.error != null) {

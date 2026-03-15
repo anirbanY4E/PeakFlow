@@ -5,7 +5,7 @@ import com.run.peakflow.data.repository.AuthRepository
 class LogoutUseCase(
     private val authRepository: AuthRepository
 ) {
-    operator fun invoke() {
+    suspend operator fun invoke() {
         authRepository.logout()
     }
 }

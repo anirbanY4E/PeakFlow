@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
@@ -17,11 +18,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.data.models.Post
 import com.run.peakflow.presentation.components.FeedComponent
+import com.run.peakflow.ui.components.AvatarImage
 import com.run.peakflow.ui.components.EmptyView
 import com.run.peakflow.ui.components.ErrorView
 import com.run.peakflow.ui.components.LoadingView
@@ -84,9 +87,11 @@ fun PostCard(post: Post, isLiked: Boolean, onPostClick: () -> Unit, onLikeClick:
     ) {
         Column(modifier = Modifier.padding(PeakFlowSpacing.screenHorizontal)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(Icons.Default.Person, null, modifier = Modifier.padding(8.dp))
-                }
+                AvatarImage(
+                    imageUrl = post.authorAvatarUrl,
+                    size = 40.dp,
+                    contentDescription = "${post.authorName}'s avatar"
+                )
                 Spacer(modifier = Modifier.width(PeakFlowSpacing.elementGap))
                 Column {
                     Text(post.authorName, style = PeakFlowTypography.bodyTitle())
@@ -95,6 +100,21 @@ fun PostCard(post: Post, isLiked: Boolean, onPostClick: () -> Unit, onLikeClick:
             }
             Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
             Text(post.content, style = PeakFlowTypography.bodyMain(), maxLines = 5, overflow = TextOverflow.Ellipsis)
+            
+            // Display post image if available
+            if (post.imageUrl != null) {
+                Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
+                coil3.compose.AsyncImage(
+                    model = post.imageUrl,
+                    contentDescription = "Post image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(MaterialTheme.shapes.medium),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+            
             Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {

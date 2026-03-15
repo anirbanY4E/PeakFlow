@@ -15,6 +15,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -24,6 +25,7 @@ import com.run.peakflow.data.models.MembershipRole
 import com.run.peakflow.data.models.Post
 import com.run.peakflow.presentation.components.CommunityDetailComponent
 import com.run.peakflow.presentation.state.CommunityTab
+import com.run.peakflow.ui.components.AvatarImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,19 +202,32 @@ private fun CommunityPostCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(32.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Icon(Icons.Default.Person, null, modifier = Modifier.padding(6.dp))
-                }
+                AvatarImage(
+                    imageUrl = post.authorAvatarUrl,
+                    size = 32.dp,
+                    contentDescription = "${post.authorName}'s avatar"
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(post.authorName, style = MaterialTheme.typography.titleSmall)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(post.content, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            
+            // Display post image if available
+            if (post.imageUrl != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                coil3.compose.AsyncImage(
+                    model = post.imageUrl,
+                    contentDescription = "Post image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+            
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -265,13 +280,20 @@ private fun MembersTabContent(members: List<CommunityMembership>) {
 
 @Composable
 private fun MemberItem(membership: CommunityMembership) {
+    // Format the timestamp to a readable date string
+    val joinedDate = remember(membership.joinedAt) {
+        formatTimestampToDate(membership.joinedAt)
+    }
+    
     ListItem(
         headlineContent = { Text("Member", style = MaterialTheme.typography.bodyMedium) },
-        supportingContent = { Text("Joined ${membership.joinedAt}", style = MaterialTheme.typography.bodySmall) },
+        supportingContent = { Text("Joined $joinedDate", style = MaterialTheme.typography.bodySmall) },
         leadingContent = {
-            Surface(modifier = Modifier.size(36.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                Icon(Icons.Default.Person, null, modifier = Modifier.padding(8.dp))
-            }
+            AvatarImage(
+                imageUrl = null, // We don't have member avatar in CommunityMembership model
+                size = 36.dp,
+                contentDescription = "Member avatar"
+            )
         },
         trailingContent = {
             if (membership.role == MembershipRole.ADMIN) {
@@ -279,6 +301,29 @@ private fun MemberItem(membership: CommunityMembership) {
             }
         }
     )
+}
+
+/**
+ * Formats a timestamp (milliseconds since epoch) to a readable date string
+ */
+private fun formatTimestampToDate(timestamp: Long): String {
+    return if (timestamp > 0) {
+        // Simple formatting: convert to seconds and use platform-agnostic approach
+        val seconds = timestamp / 1000
+        val days = seconds / 86400
+        val years = days / 365
+        val months = (days % 365) / 30
+        
+        when {
+            years > 0 -> "$years year${if (years > 1) "s" else ""} ago"
+            months > 0 -> "$months month${if (months > 1) "s" else ""} ago"
+            days > 7 -> "${days / 7} weeks ago"
+            days > 0 -> "$days day${if (days > 1) "s" else ""} ago"
+            else -> "Recently"
+        }
+    } else {
+        "Recently"
+    }
 }
 
 @Composable

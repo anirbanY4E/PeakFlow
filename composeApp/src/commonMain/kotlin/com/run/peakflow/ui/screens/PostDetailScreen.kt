@@ -16,10 +16,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.data.models.PostComment
 import com.run.peakflow.presentation.components.PostDetailComponent
+import com.run.peakflow.ui.components.AvatarImage
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
 
@@ -55,9 +57,11 @@ fun PostDetailScreen(component: PostDetailComponent) {
                 item {
                     Column(modifier = Modifier.padding(PeakFlowSpacing.screenHorizontal)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                                Icon(Icons.Default.Person, null, modifier = Modifier.padding(12.dp))
-                            }
+                            AvatarImage(
+                                imageUrl = state.post!!.authorAvatarUrl,
+                                size = 48.dp,
+                                contentDescription = "${state.post!!.authorName}'s avatar"
+                            )
                             Spacer(modifier = Modifier.width(PeakFlowSpacing.elementGap))
                             Column {
                                 Text(state.post!!.authorName, style = PeakFlowTypography.bodyTitle())
@@ -69,6 +73,20 @@ fun PostDetailScreen(component: PostDetailComponent) {
 
                         Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
                         Text(state.post!!.content, style = PeakFlowTypography.bodyMain())
+                        
+                        // Display post image if available
+                        if (state.post!!.imageUrl != null) {
+                            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
+                            coil3.compose.AsyncImage(
+                                model = state.post!!.imageUrl,
+                                contentDescription = "Post image",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(250.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
                         
                         Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -109,9 +127,11 @@ private fun CommentItem(comment: PostComment) {
         headlineContent = { Text(comment.userName, style = PeakFlowTypography.bodyTitle()) },
         supportingContent = { Text(comment.content, style = PeakFlowTypography.bodyMain()) },
         leadingContent = {
-            Surface(modifier = Modifier.size(32.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                Icon(Icons.Default.Person, null, modifier = Modifier.padding(6.dp))
-            }
+            AvatarImage(
+                imageUrl = comment.userAvatarUrl,
+                size = 32.dp,
+                contentDescription = "${comment.userName}'s avatar"
+            )
         }
     )
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.run.peakflow.data.models.CommunityGroup
 import com.run.peakflow.presentation.components.CommunitiesListComponent
 import com.run.peakflow.presentation.state.CommunitiesTab
+import com.run.peakflow.ui.components.CommunityImage
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
 
@@ -90,15 +91,12 @@ fun CommunityCard(community: CommunityGroup, isMember: Boolean, isPending: Boole
         border = CardDefaults.outlinedCardBorder()
     ) {
         Row(modifier = Modifier.padding(PeakFlowSpacing.cardPadding), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
+            CommunityImage(
+                imageUrl = community.imageUrl,
+                emoji = community.category.emoji,
                 modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(text = community.category.emoji, style = MaterialTheme.typography.headlineSmall)
-                }
-            }
+                contentDescription = "${community.title} image"
+            )
             Spacer(modifier = Modifier.width(PeakFlowSpacing.elementGap))
             Column(modifier = Modifier.weight(1f)) {
                 Text(community.title, style = PeakFlowTypography.bodyTitle(), maxLines = 1, overflow = TextOverflow.Ellipsis)

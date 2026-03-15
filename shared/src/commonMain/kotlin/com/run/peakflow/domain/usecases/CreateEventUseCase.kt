@@ -22,7 +22,8 @@ class CreateEventUseCase(
         location: String,
         maxParticipants: Int,
         isFree: Boolean = true,
-        price: Double? = null
+        price: Double? = null,
+        imageBytes: ByteArray? = null
     ): Result<Event> {
         // Step 1: Verify user is logged in
         val userId = userRepository.getCurrentUserId()
@@ -63,7 +64,8 @@ class CreateEventUseCase(
                 location = location,
                 maxParticipants = maxParticipants,
                 isFree = isFree,
-                price = price
+                price = price,
+                imageBytes = imageBytes
             )
             Result.success(event)
         } catch (e: Exception) {

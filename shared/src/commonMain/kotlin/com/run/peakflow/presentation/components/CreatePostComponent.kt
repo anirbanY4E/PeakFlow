@@ -32,8 +32,8 @@ class CreatePostComponent(
         _state.update { it.copy(content = content, error = null) }
     }
 
-    fun onImageUrlChanged(imageUrl: String?) {
-        _state.update { it.copy(imageUrl = imageUrl) }
+    fun onImageChanged(imageBytes: ByteArray?) {
+        _state.update { it.copy(imageBytes = imageBytes) }
     }
 
     fun onBackClick() {
@@ -54,7 +54,7 @@ class CreatePostComponent(
             val result = createPost(
                 communityId = currentState.communityId,
                 content = currentState.content,
-                imageUrl = currentState.imageUrl
+                imageBytes = currentState.imageBytes
             )
 
             result.onSuccess {

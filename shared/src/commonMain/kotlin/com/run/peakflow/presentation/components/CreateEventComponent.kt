@@ -65,6 +65,10 @@ class CreateEventComponent(
         _state.update { it.copy(price = price) }
     }
 
+    fun onImageChanged(imageBytes: ByteArray?) {
+        _state.update { it.copy(imageBytes = imageBytes) }
+    }
+
     fun onBackClick() {
         onNavigateBack()
     }
@@ -85,7 +89,8 @@ class CreateEventComponent(
                 location = currentState.location,
                 maxParticipants = currentState.maxParticipants,
                 isFree = currentState.isFree,
-                price = currentState.price
+                price = currentState.price,
+                imageBytes = currentState.imageBytes
             )
 
             result.onSuccess {
