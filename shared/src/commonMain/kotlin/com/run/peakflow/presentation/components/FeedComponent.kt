@@ -4,7 +4,6 @@ import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.GetFeedPostsUseCase
-import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
 import com.run.peakflow.presentation.state.FeedState
 import kotlinx.coroutines.CoroutineScope
@@ -27,7 +26,6 @@ class FeedComponent(
 
     private val getFeedPosts: GetFeedPostsUseCase by inject()
     private val likePost: LikePostUseCase by inject()
-    private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
     private val postRepository: PostRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -56,9 +54,7 @@ class FeedComponent(
         scope.launch {
             try {
                 val posts = getFeedPosts()
-                val likedIds = posts.map { it.id }
-                    .filter { hasUserLikedPost(it) }
-                    .toSet()
+                val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 // Silently fail
@@ -71,7 +67,7 @@ class FeedComponent(
             _state.update { it.copy(isLoading = true, error = null) }
             try {
                 val posts = getFeedPosts()
-                val likedIds = posts.map { it.id }.filter { hasUserLikedPost(it) }.toSet()
+                val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { it.copy(isLoading = false, posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load feed") }
@@ -84,7 +80,7 @@ class FeedComponent(
             _state.update { it.copy(isRefreshing = true) }
             try {
                 val posts = getFeedPosts()
-                val likedIds = posts.map { it.id }.filter { hasUserLikedPost(it) }.toSet()
+                val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { it.copy(isRefreshing = false, posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 _state.update { it.copy(isRefreshing = false, error = e.message) }

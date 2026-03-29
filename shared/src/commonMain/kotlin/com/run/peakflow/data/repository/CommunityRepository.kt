@@ -52,12 +52,7 @@ class CommunityRepository(
         return api.createCommunity(title, description, category, city, rulesList, createdBy, imageUrl, coverUrl)
     }
 
-    suspend fun getUserCommunities(
-        userId: String,
-        membershipRepository: MembershipRepository
-    ): List<CommunityGroup> {
-        val memberships = membershipRepository.getUserMemberships(userId)
-        val communityIds = memberships.map { it.communityId }
-        return getCommunities().filter { it.id in communityIds }
+    suspend fun getUserCommunities(userId: String): List<CommunityGroup> {
+        return api.getUserCommunities(userId).map { it.first }
     }
 }

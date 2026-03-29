@@ -1,15 +1,17 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.run.peakflow.data.repository.MembershipRepository
+import com.run.peakflow.data.repository.UserRepository
 import com.run.peakflow.domain.usecases.GetDiscoverCommunitiesUseCase
 import com.run.peakflow.domain.usecases.GetUserCommunitiesUseCase
-import com.run.peakflow.domain.usecases.HasUserRequestedToJoinUseCase
 import com.run.peakflow.domain.usecases.RequestToJoinCommunityUseCase
 import com.run.peakflow.presentation.state.CommunitiesListState
 import com.run.peakflow.presentation.state.CommunitiesTab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,7 +28,8 @@ class CommunitiesListComponent(
     private val getUserCommunities: GetUserCommunitiesUseCase by inject()
     private val getDiscoverCommunities: GetDiscoverCommunitiesUseCase by inject()
     private val requestToJoinCommunity: RequestToJoinCommunityUseCase by inject()
-    private val hasUserRequestedToJoin: HasUserRequestedToJoinUseCase by inject()
+    private val membershipRepository: MembershipRepository by inject()
+    private val userRepository: UserRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -42,11 +45,20 @@ class CommunitiesListComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
-                val myGroups = getUserCommunities()
-                val discoverGroups = getDiscoverCommunities("Bangalore")
-                val pendingIds = discoverGroups.map { it.id }
-                    .filter { hasUserRequestedToJoin(it) }
-                    .toSet()
+                // Parallelize both fetches
+                val myGroupsDeferred = async { getUserCommunities() }
+                val discoverGroupsDeferred = async { getDiscoverCommunities("Bangalore") }
+
+                val myGroups = myGroupsDeferred.await()
+                val discoverGroups = discoverGroupsDeferred.await()
+
+                // Batch-fetch pending join request community IDs in ONE query instead of N+1
+                val userId = userRepository.getCurrentUserId()
+                val pendingIds = if (userId != null) {
+                    membershipRepository.getPendingJoinRequestCommunityIds(userId)
+                } else {
+                    emptySet()
+                }
 
                 _state.update {
                     it.copy(
@@ -67,11 +79,18 @@ class CommunitiesListComponent(
             _state.update { it.copy(isRefreshing = true) }
 
             try {
-                val myGroups = getUserCommunities()
-                val discoverGroups = getDiscoverCommunities("Bangalore")
-                val pendingIds = discoverGroups.map { it.id }
-                    .filter { hasUserRequestedToJoin(it) }
-                    .toSet()
+                val myGroupsDeferred = async { getUserCommunities() }
+                val discoverGroupsDeferred = async { getDiscoverCommunities("Bangalore") }
+
+                val myGroups = myGroupsDeferred.await()
+                val discoverGroups = discoverGroupsDeferred.await()
+
+                val userId = userRepository.getCurrentUserId()
+                val pendingIds = if (userId != null) {
+                    membershipRepository.getPendingJoinRequestCommunityIds(userId)
+                } else {
+                    emptySet()
+                }
 
                 _state.update {
                     it.copy(

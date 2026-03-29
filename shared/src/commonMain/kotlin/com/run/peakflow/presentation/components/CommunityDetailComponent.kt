@@ -2,14 +2,13 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.models.User
 import com.run.peakflow.data.repository.EventRepository
+import com.run.peakflow.data.repository.MembershipRepository
 import com.run.peakflow.data.repository.PostRepository
 import com.run.peakflow.domain.usecases.GetCommunityById
-import com.run.peakflow.domain.usecases.GetCommunityEvents
-import com.run.peakflow.domain.usecases.GetCommunityMembersUseCase
 import com.run.peakflow.domain.usecases.GetCommunityPostsUseCase
 import com.run.peakflow.domain.usecases.GetEventRsvpStatus
-import com.run.peakflow.domain.usecases.GetUserByIdUseCase
 import com.run.peakflow.domain.usecases.GetUserRoleInCommunityUseCase
 import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
@@ -21,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,15 +44,13 @@ class CommunityDetailComponent(
 
     private val getCommunityById: GetCommunityById by inject()
     private val getCommunityPosts: GetCommunityPostsUseCase by inject()
-    private val getCommunityEvents: GetCommunityEvents by inject()
-    private val getCommunityMembers: GetCommunityMembersUseCase by inject()
-    private val getUserById: GetUserByIdUseCase by inject()
     private val getUserRoleInCommunity: GetUserRoleInCommunityUseCase by inject()
     private val likePost: LikePostUseCase by inject()
     private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
     private val rsvpToEvent: RsvpToEvent by inject()
     private val getEventRsvpStatus: GetEventRsvpStatus by inject()
     private val eventRepository: EventRepository by inject()
+    private val membershipRepository: MembershipRepository by inject()
     private val postRepository: PostRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -122,10 +120,9 @@ class CommunityDetailComponent(
     private fun reloadEventsInternal() {
         scope.launch {
             try {
-                val events = getCommunityEvents(communityId)
-                val rsvpedIds = events.map { it.id }
-                    .filter { getEventRsvpStatus(it) }
-                    .toSet()
+                val eventsWithRsvp = eventRepository.getCommunityEventsWithRsvp(communityId)
+                val events = eventsWithRsvp.map { it.first }
+                val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
                 _state.update { it.copy(events = events, rsvpedEventIds = rsvpedIds) }
             } catch (e: Exception) {
                 // Silently fail
@@ -137,9 +134,8 @@ class CommunityDetailComponent(
         scope.launch {
             try {
                 val posts = getCommunityPosts(communityId)
-                val likedIds = posts.map { it.id }
-                    .filter { hasUserLikedPost(it) }
-                    .toSet()
+                // Use is_liked from the RPC response
+                val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 // Silently fail
@@ -149,15 +145,19 @@ class CommunityDetailComponent(
 
     private fun observeRealtimePosts() {
         scope.launch {
-            postRepository.observeNewPosts(communityId).collect { newPost ->
-                _state.update { currentState ->
-                    // Avoid duplicates (local creates are already handled by postStateChanges)
-                    if (currentState.posts.any { it.id == newPost.id }) {
-                        currentState
-                    } else {
-                        currentState.copy(posts = listOf(newPost) + currentState.posts)
+            try {
+                postRepository.observeNewPosts(communityId).collect { newPost ->
+                    _state.update { currentState ->
+                        // Avoid duplicates (local creates are already handled by postStateChanges)
+                        if (currentState.posts.any { it.id == newPost.id }) {
+                            currentState
+                        } else {
+                            currentState.copy(posts = listOf(newPost) + currentState.posts)
+                        }
                     }
                 }
+            } catch (_: Exception) {
+                // Realtime observation failed — non-fatal, data will refresh on pull-to-refresh
             }
         }
     }
@@ -167,25 +167,44 @@ class CommunityDetailComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
-                val community = getCommunityById(communityId)
-                val posts = getCommunityPosts(communityId)
-                val events = getCommunityEvents(communityId)
-                val members = getCommunityMembers(communityId)
-                val membersWithUsers = members.map { membership ->
-                    async {
-                        val user = try { getUserById(membership.userId) } catch (e: Exception) { null }
-                        MemberWithUser(membership, user)
-                    }
-                }.map { it.await() }
-                val userRole = getUserRoleInCommunity(communityId)
+                // Parallelize all 4 independent fetches
+                val communityDeferred = async { getCommunityById(communityId) }
+                val postsDeferred = async { getCommunityPosts(communityId) }
+                val eventsWithRsvpDeferred = async { eventRepository.getCommunityEventsWithRsvp(communityId) }
+                val membersDeferred = async { membershipRepository.getCommunityMembersWithProfiles(communityId) }
+                val userRoleDeferred = async { getUserRoleInCommunity(communityId) }
 
-                val likedIds = posts.map { it.id }
-                    .filter { hasUserLikedPost(it) }
-                    .toSet()
+                // Await all in parallel
+                val community = communityDeferred.await()
+                val posts = postsDeferred.await()
+                val eventsWithRsvp = eventsWithRsvpDeferred.await()
+                val membersWithProfiles = membersDeferred.await()
+                val userRole = userRoleDeferred.await()
 
-                val rsvpedIds = events.map { it.id }
-                    .filter { getEventRsvpStatus(it) }
-                    .toSet()
+                // Use is_liked from the get_community_posts RPC — no N+1!
+                val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
+
+                // Events + RSVP from the batch RPC — no N+1!
+                val events = eventsWithRsvp.map { it.first }
+                val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
+
+                // Members already have profile info from the batch RPC — no N+1!
+                val membersWithUsers = membersWithProfiles.map { mwp ->
+                    MemberWithUser(
+                        membership = mwp.membership,
+                        user = User(
+                            id = mwp.membership.userId,
+                            name = mwp.userName,
+                            email = mwp.userEmail,
+                            phone = null,
+                            city = "",
+                            avatarUrl = mwp.userAvatarUrl,
+                            interests = emptyList(),
+                            createdAt = 0L,
+                            isVerified = false
+                        )
+                    )
+                }
 
                 _state.update {
                     it.copy(

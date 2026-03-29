@@ -791,6 +791,20 @@ class MockApiService : ApiService {
         }
     }
 
+    override suspend fun getCommunityMembersWithProfiles(communityId: String): List<CommunityMemberWithProfile> {
+        delay(300)
+        val members = memberships.filter { it.communityId == communityId && it.role != MembershipRole.PENDING }
+        return members.map { membership ->
+            val user = users.find { it.id == membership.userId }
+            CommunityMemberWithProfile(
+                membership = membership,
+                userName = user?.name ?: "Member",
+                userEmail = user?.email,
+                userAvatarUrl = user?.avatarUrl
+            )
+        }
+    }
+
     override suspend fun getMembershipRole(userId: String, communityId: String): CommunityMembership? {
         delay(200)
         return memberships.find { it.userId == userId && it.communityId == communityId }
@@ -888,6 +902,14 @@ class MockApiService : ApiService {
                     it.communityId == communityId &&
                     it.status == RequestStatus.PENDING
         }
+    }
+
+    override suspend fun getPendingJoinRequestCommunityIds(userId: String): Set<String> {
+        delay(200)
+        return joinRequests
+            .filter { it.userId == userId && it.status == RequestStatus.PENDING }
+            .map { it.communityId }
+            .toSet()
     }
 
     // ==================== POSTS ====================
@@ -1075,6 +1097,17 @@ class MockApiService : ApiService {
             .sortedBy { it.date }
     }
 
+    override suspend fun getCommunityEventsWithRsvp(communityId: String): List<Pair<Event, Boolean>> {
+        delay(350)
+        val userId = getSessionUserId() ?: ""
+        return events
+            .filter { it.groupId == communityId }
+            .sortedBy { it.date }
+            .map { event ->
+                event to rsvps.any { it.userId == userId && it.eventId == event.id }
+            }
+    }
+
     override suspend fun getEventById(eventId: String): Event? {
         delay(300)
         return events.find { it.id == eventId }
@@ -1101,6 +1134,31 @@ class MockApiService : ApiService {
         return events
             .filter { it.groupId in communityIds }
             .sortedBy { it.date }
+    }
+
+    override suspend fun getUserEventsWithRsvp(category: EventCategory?): List<Pair<Event, Boolean>> {
+        delay(400)
+        val userId = getSessionUserId() ?: ""
+        return events
+            .filter { category == null || it.category == category }
+            .sortedBy { it.date }
+            .map { event ->
+                event to rsvps.any { it.userId == userId && it.eventId == event.id }
+            }
+    }
+
+    override suspend fun getEventDetail(eventId: String): EventDetailResult? {
+        delay(300)
+        val event = events.find { it.id == eventId } ?: return null
+        val community = communities.find { it.id == event.groupId }
+        val userId = getSessionUserId() ?: ""
+        return EventDetailResult(
+            event = event,
+            communityName = community?.title ?: "Unknown",
+            communityImage = community?.imageUrl,
+            hasRsvped = rsvps.any { it.userId == userId && it.eventId == eventId },
+            hasCheckedIn = attendances.any { it.userId == userId && it.eventId == eventId }
+        )
     }
 
     // ==================== RSVP ====================

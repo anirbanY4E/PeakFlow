@@ -32,28 +32,36 @@ class MainComponent(
         updateBackCallback()
     }
 
+    // Feed is eager — it's the default visible tab
     val feedComponent = FeedComponent(
         componentContext = componentContext,
         onNavigateToPostDetail = onNavigateToPostDetail,
         onNavigateToCommunityDetail = onNavigateToCommunityDetail
     )
 
-    val eventsListComponent = EventsListComponent(
-        componentContext = componentContext,
-        onNavigateToEventDetail = onNavigateToEventDetail
-    )
+    // Lazy-load other tabs — only initialize when first accessed
+    val eventsListComponent by lazy {
+        EventsListComponent(
+            componentContext = componentContext,
+            onNavigateToEventDetail = onNavigateToEventDetail
+        )
+    }
 
-    val communitiesListComponent = CommunitiesListComponent(
-        componentContext = componentContext,
-        onNavigateToCommunityDetail = onNavigateToCommunityDetail
-    )
+    val communitiesListComponent by lazy {
+        CommunitiesListComponent(
+            componentContext = componentContext,
+            onNavigateToCommunityDetail = onNavigateToCommunityDetail
+        )
+    }
 
-    val profileComponent = ProfileComponent(
-        componentContext = componentContext,
-        onNavigateToSettings = onNavigateToSettings,
-        onNavigateToEditProfile = onNavigateToEditProfile,
-        onLogout = onLogout
-    )
+    val profileComponent by lazy {
+        ProfileComponent(
+            componentContext = componentContext,
+            onNavigateToSettings = onNavigateToSettings,
+            onNavigateToEditProfile = onNavigateToEditProfile,
+            onLogout = onLogout
+        )
+    }
 
     fun onTabSelected(tab: MainTab) {
         _state.update { it.copy(selectedTab = tab) }

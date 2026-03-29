@@ -3,8 +3,6 @@ package com.run.peakflow.presentation.components
 import com.arkivanov.decompose.ComponentContext
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.repository.EventRepository
-import com.run.peakflow.domain.usecases.GetEventRsvpStatus
-import com.run.peakflow.domain.usecases.GetNearbyEventsUseCase
 import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.presentation.state.EventsListState
 import kotlinx.coroutines.CoroutineScope
@@ -23,9 +21,7 @@ class EventsListComponent(
     private val onNavigateToEventDetail: (String) -> Unit
 ) : ComponentContext by componentContext, KoinComponent {
 
-    private val getNearbyEvents: GetNearbyEventsUseCase by inject()
     private val rsvpToEvent: RsvpToEvent by inject()
-    private val getEventRsvpStatus: GetEventRsvpStatus by inject()
     private val eventRepository: EventRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -41,40 +37,8 @@ class EventsListComponent(
     private fun observeEventStateChanges() {
         scope.launch {
             eventRepository.eventStateChanges.collect { change ->
-                _state.update { currentState ->
-                    // Update RSVP status if changed
-                    val newRsvpedIds = if (change.rsvpStatusChanged) {
-                        val isRsvped = getEventRsvpStatus(change.eventId)
-                        if (isRsvped) {
-                            currentState.rsvpedEventIds + change.eventId
-                        } else {
-                            currentState.rsvpedEventIds - change.eventId
-                        }
-                    } else {
-                        currentState.rsvpedEventIds
-                    }
-
-                    // Update participant count if changed
-                    val newEvents = if (change.participantCountChanged) {
-                        currentState.events.map { event ->
-                            if (event.id == change.eventId) {
-                                // Reload the event to get updated participant count
-                                event
-                            } else {
-                                event
-                            }
-                        }
-                    } else {
-                        currentState.events
-                    }
-
-                    currentState.copy(
-                        rsvpedEventIds = newRsvpedIds,
-                        events = newEvents
-                    )
-                }
-                // Reload events to get updated data
-                if (change.participantCountChanged) {
+                // Reload events if anything significant changed
+                if (change.rsvpStatusChanged || change.participantCountChanged || change.wasCreated) {
                     loadEvents()
                 }
             }
@@ -87,10 +51,10 @@ class EventsListComponent(
 
             try {
                 val currentState = _state.value
-                val events = getNearbyEvents(currentState.city, currentState.selectedCategory)
-                val rsvpedIds = events.map { it.id }
-                    .filter { getEventRsvpStatus(it) }
-                    .toSet()
+                // Single RPC call: replaces getUserMemberships + getNearbyEvents + N × hasUserRsvped
+                val eventsWithRsvp = eventRepository.getUserEventsWithRsvp(currentState.selectedCategory)
+                val events = eventsWithRsvp.map { it.first }
+                val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
 
                 _state.update {
                     it.copy(
@@ -111,10 +75,9 @@ class EventsListComponent(
 
             try {
                 val currentState = _state.value
-                val events = getNearbyEvents(currentState.city, currentState.selectedCategory)
-                val rsvpedIds = events.map { it.id }
-                    .filter { getEventRsvpStatus(it) }
-                    .toSet()
+                val eventsWithRsvp = eventRepository.getUserEventsWithRsvp(currentState.selectedCategory)
+                val events = eventsWithRsvp.map { it.first }
+                val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
 
                 _state.update {
                     it.copy(

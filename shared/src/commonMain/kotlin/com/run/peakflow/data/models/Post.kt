@@ -14,5 +14,6 @@ data class Post(
     val imageUrl: String? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
-    val createdAt: Long
+    val createdAt: Long,
+    val isLiked: Boolean = false
 )

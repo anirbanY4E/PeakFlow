@@ -5,6 +5,7 @@ import com.run.peakflow.data.models.Event
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.models.Rsvp
 import com.run.peakflow.data.network.ApiService
+import com.run.peakflow.data.network.EventDetailResult
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -63,6 +64,10 @@ class EventRepository(
         return api.getEventsByGroupId(groupId)
     }
 
+    suspend fun getCommunityEventsWithRsvp(communityId: String): List<Pair<Event, Boolean>> {
+        return api.getCommunityEventsWithRsvp(communityId)
+    }
+
     suspend fun getEventById(eventId: String): Event? {
         return api.getEventById(eventId)
     }
@@ -77,6 +82,22 @@ class EventRepository(
 
     suspend fun getAllAccessibleEvents(communityIds: List<String>): List<Event> {
         return api.getAllAccessibleEvents(communityIds)
+    }
+
+    /**
+     * Batch-fetch all events for the user's communities with RSVP status.
+     * Single RPC call replaces: getUserMemberships + getNearbyEvents + N × hasUserRsvped
+     */
+    suspend fun getUserEventsWithRsvp(category: EventCategory? = null): List<Pair<Event, Boolean>> {
+        return api.getUserEventsWithRsvp(category)
+    }
+
+    /**
+     * Fetch event detail with community info, RSVP status, and check-in status in one RPC call.
+     * Single RPC call replaces: getEventById + getCommunityById + hasUserRsvped + hasUserCheckedIn
+     */
+    suspend fun getEventDetail(eventId: String): EventDetailResult? {
+        return api.getEventDetail(eventId)
     }
 
     // ==================== RSVP ====================

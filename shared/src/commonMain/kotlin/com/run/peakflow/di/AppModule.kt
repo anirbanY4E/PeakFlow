@@ -121,13 +121,13 @@ val appModule = module {
     // ==================== USE CASES: COMMUNITY ====================
 
     factory { GetNearbyCommunities(get()) }
-    factory { GetUserCommunitiesUseCase(get(), get(), get()) }
+    factory { GetUserCommunitiesUseCase(get(), get()) }
     factory { GetDiscoverCommunitiesUseCase(get(), get(), get()) }
     factory { GetCommunityById(get()) }
 
     // ==================== USE CASES: POST ====================
 
-    factory { GetFeedPostsUseCase(get(), get(), get()) }
+    factory { GetFeedPostsUseCase(get(), get()) }
     factory { GetCommunityPostsUseCase(get()) }
     factory { GetPostByIdUseCase(get()) }
     factory { CreatePostUseCase(get(), get(), get()) }

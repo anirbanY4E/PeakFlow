@@ -3,6 +3,7 @@ package com.run.peakflow.data.repository
 import com.run.peakflow.data.models.CommunityMembership
 import com.run.peakflow.data.models.JoinRequest
 import com.run.peakflow.data.network.ApiService
+import com.run.peakflow.data.network.CommunityMemberWithProfile
 
 class MembershipRepository(
     private val api: ApiService
@@ -15,6 +16,10 @@ class MembershipRepository(
 
     suspend fun getCommunityMemberships(communityId: String): List<CommunityMembership> {
         return api.getCommunityMemberships(communityId)
+    }
+
+    suspend fun getCommunityMembersWithProfiles(communityId: String): List<CommunityMemberWithProfile> {
+        return api.getCommunityMembersWithProfiles(communityId)
     }
 
     suspend fun getMembershipRole(userId: String, communityId: String): CommunityMembership? {
@@ -49,6 +54,10 @@ class MembershipRepository(
 
     suspend fun hasUserRequestedToJoin(userId: String, communityId: String): Boolean {
         return api.hasUserRequestedToJoin(userId, communityId)
+    }
+
+    suspend fun getPendingJoinRequestCommunityIds(userId: String): Set<String> {
+        return api.getPendingJoinRequestCommunityIds(userId)
     }
 
     // ==================== REALTIME ====================

@@ -1,12 +1,11 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.run.peakflow.data.models.CommunityGroup
+import com.run.peakflow.data.models.EventCategory
+import com.run.peakflow.data.repository.EventRepository
 import com.run.peakflow.domain.usecases.CancelRsvpUseCase
 import com.run.peakflow.domain.usecases.CheckInToEvent
-import com.run.peakflow.domain.usecases.GetCommunityById
-import com.run.peakflow.domain.usecases.GetEventById
-import com.run.peakflow.domain.usecases.GetEventCheckInStatus
-import com.run.peakflow.domain.usecases.GetEventRsvpStatus
 import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.presentation.state.EventDetailState
 import kotlinx.coroutines.CoroutineScope
@@ -26,10 +25,7 @@ class EventDetailComponent(
     private val onNavigateBack: () -> Unit
 ) : ComponentContext by componentContext, KoinComponent {
 
-    private val getEventById: GetEventById by inject()
-    private val getCommunityById: GetCommunityById by inject()
-    private val getEventRsvpStatus: GetEventRsvpStatus by inject()
-    private val getEventCheckInStatus: GetEventCheckInStatus by inject()
+    private val eventRepository: EventRepository by inject()
     private val rsvpToEvent: RsvpToEvent by inject()
     private val cancelRsvp: CancelRsvpUseCase by inject()
     private val checkInToEvent: CheckInToEvent by inject()
@@ -48,20 +44,36 @@ class EventDetailComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
-                val event = getEventById(eventId)
-                val community = event?.let { getCommunityById(it.groupId) }
-                val hasRsvped = getEventRsvpStatus(eventId)
-                val hasCheckedIn = getEventCheckInStatus(eventId)
+                // Single RPC call replaces 4 sequential calls:
+                // getEventById + getCommunityById + getEventRsvpStatus + getEventCheckInStatus
+                val detail = eventRepository.getEventDetail(eventId)
 
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        event = event,
-                        community = community,
-                        hasRsvped = hasRsvped,
-                        hasCheckedIn = hasCheckedIn,
-                        participantsCount = event?.currentParticipants ?: 0
+                if (detail != null) {
+                    // Build a minimal CommunityGroup from the RPC data for backwards compatibility
+                    val community = CommunityGroup(
+                        id = detail.event.groupId,
+                        title = detail.communityName,
+                        description = "",
+                        category = detail.event.category,
+                        city = "",
+                        memberCount = 0,
+                        createdBy = "",
+                        imageUrl = detail.communityImage,
+                        createdAt = 0L
                     )
+
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            event = detail.event,
+                            community = community,
+                            hasRsvped = detail.hasRsvped,
+                            hasCheckedIn = detail.hasCheckedIn,
+                            participantsCount = detail.event.currentParticipants
+                        )
+                    }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = "Event not found") }
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }

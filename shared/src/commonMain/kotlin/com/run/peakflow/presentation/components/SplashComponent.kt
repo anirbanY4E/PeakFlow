@@ -41,7 +41,7 @@ class SplashComponent(
 
     private fun checkAuthState() {
         scope.launch {
-            delay(1500) // Show splash for at least 1.5 seconds
+            delay(500) // Show splash briefly
 
             if (!isUserLoggedIn()) {
                 _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.WELCOME) }

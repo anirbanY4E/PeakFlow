@@ -36,6 +36,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
@@ -752,6 +755,42 @@ class SupabaseApiService(
         return rows.map { it.toCommunityMembership() }
     }
 
+    override suspend fun getCommunityMembersWithProfiles(communityId: String): List<CommunityMemberWithProfile> {
+        @Serializable
+        data class MemberWithProfileRow(
+            val id: String,
+            val user_id: String,
+            val community_id: String,
+            val role: String,
+            val joined_at: String? = null,
+            val invited_by: String? = null,
+            val user_name: String? = null,
+            val user_email: String? = null,
+            val user_avatar_url: String? = null
+        )
+
+        val rows = client.postgrest.rpc(
+            "get_community_members_with_profiles",
+            buildJsonObject { put("p_community_id", communityId) }
+        ).decodeList<MemberWithProfileRow>()
+
+        return rows.map { row ->
+            CommunityMemberWithProfile(
+                membership = CommunityMembership(
+                    id = row.id,
+                    userId = row.user_id,
+                    communityId = row.community_id,
+                    role = try { MembershipRole.valueOf(row.role) } catch (_: Exception) { MembershipRole.MEMBER },
+                    joinedAt = parseTimestamp(row.joined_at),
+                    invitedBy = row.invited_by
+                ),
+                userName = row.user_name ?: "Member",
+                userEmail = row.user_email,
+                userAvatarUrl = row.user_avatar_url
+            )
+        }
+    }
+
     override suspend fun getMembershipRole(userId: String, communityId: String): CommunityMembership? {
         return try {
             val row = client.postgrest.from("memberships")
@@ -865,6 +904,18 @@ class SupabaseApiService(
         return rows.isNotEmpty()
     }
 
+    override suspend fun getPendingJoinRequestCommunityIds(userId: String): Set<String> {
+        @Serializable
+        data class CommunityIdRow(val community_id: String)
+
+        val rows = client.postgrest.rpc(
+            "get_pending_join_request_community_ids",
+            buildJsonObject { put("p_user_id", userId) }
+        ).decodeList<CommunityIdRow>()
+
+        return rows.map { it.community_id }.toSet()
+    }
+
     // ==================== POSTS ====================
 
     override suspend fun getCommunityPosts(communityId: String): List<Post> {
@@ -940,7 +991,8 @@ class SupabaseApiService(
                 imageUrl = row.image_url,
                 likesCount = row.likes_count,
                 commentsCount = row.comments_count,
-                createdAt = parseTimestamp(row.created_at)
+                createdAt = parseTimestamp(row.created_at),
+                isLiked = row.is_liked
             )
         }
     }
@@ -1185,6 +1237,57 @@ class SupabaseApiService(
         return rows.map { it.toEvent() }
     }
 
+    override suspend fun getCommunityEventsWithRsvp(communityId: String): List<Pair<Event, Boolean>> {
+        @Serializable
+        data class EventWithRsvpRow(
+            val id: String,
+            val community_id: String,
+            val title: String,
+            val description: String,
+            val category: String,
+            val event_date: String,
+            val event_time: String,
+            val end_time: String? = null,
+            val location: String,
+            val latitude: Double? = null,
+            val longitude: Double? = null,
+            val image_url: String? = null,
+            val max_participants: Int,
+            val current_participants: Int = 0,
+            val is_free: Boolean = true,
+            val price: Double? = null,
+            val created_at: String? = null,
+            val is_rsvped: Boolean = false
+        )
+
+        val rows = client.postgrest.rpc(
+            "get_community_events_with_rsvp",
+            buildJsonObject { put("p_community_id", communityId) }
+        ).decodeList<EventWithRsvpRow>()
+
+        return rows.map { row ->
+            Event(
+                id = row.id,
+                groupId = row.community_id,
+                title = row.title,
+                description = row.description,
+                category = parseCategory(row.category),
+                date = row.event_date,
+                time = row.event_time,
+                endTime = row.end_time,
+                location = row.location,
+                latitude = row.latitude,
+                longitude = row.longitude,
+                imageUrl = row.image_url,
+                maxParticipants = row.max_participants,
+                currentParticipants = row.current_participants,
+                isFree = row.is_free,
+                price = row.price,
+                createdAt = parseTimestamp(row.created_at)
+            ) to row.is_rsvped
+        }
+    }
+
     override suspend fun getEventById(eventId: String): Event? {
         return try {
             val row = client.postgrest.from("events")
@@ -1270,6 +1373,132 @@ class SupabaseApiService(
                 price = row.price,
                 createdAt = 0L // Not returned by this RPC
             )
+        }
+    }
+
+    override suspend fun getUserEventsWithRsvp(category: EventCategory?): List<Pair<Event, Boolean>> {
+        val userId = getSessionUserId() ?: return emptyList()
+
+        @Serializable
+        data class EventWithRsvpRow(
+            val id: String,
+            val community_id: String,
+            val community_name: String,
+            val title: String,
+            val description: String,
+            val category: String,
+            val event_date: String,
+            val event_time: String,
+            val end_time: String? = null,
+            val location: String,
+            val latitude: Double? = null,
+            val longitude: Double? = null,
+            val image_url: String? = null,
+            val max_participants: Int,
+            val current_participants: Int = 0,
+            val is_free: Boolean = true,
+            val price: Double? = null,
+            val created_at: String? = null,
+            val is_rsvped: Boolean = false
+        )
+
+        val rows = client.postgrest.rpc(
+            "get_user_events_with_rsvp",
+            buildJsonObject {
+                put("p_user_id", userId)
+                if (category != null) put("p_category", category.name)
+            }
+        ).decodeList<EventWithRsvpRow>()
+
+        return rows.map { row ->
+            Event(
+                id = row.id,
+                groupId = row.community_id,
+                title = row.title,
+                description = row.description,
+                category = parseCategory(row.category),
+                date = row.event_date,
+                time = row.event_time,
+                endTime = row.end_time,
+                location = row.location,
+                latitude = row.latitude,
+                longitude = row.longitude,
+                imageUrl = row.image_url,
+                maxParticipants = row.max_participants,
+                currentParticipants = row.current_participants,
+                isFree = row.is_free,
+                price = row.price,
+                createdAt = parseTimestamp(row.created_at)
+            ) to row.is_rsvped
+        }
+    }
+
+    override suspend fun getEventDetail(eventId: String): EventDetailResult? {
+        val userId = getSessionUserId() ?: return null
+
+        @Serializable
+        data class EventDetailRow(
+            val id: String,
+            val community_id: String,
+            val community_name: String,
+            val community_image: String? = null,
+            val title: String,
+            val description: String,
+            val category: String,
+            val event_date: String,
+            val event_time: String,
+            val end_time: String? = null,
+            val location: String,
+            val latitude: Double? = null,
+            val longitude: Double? = null,
+            val image_url: String? = null,
+            val max_participants: Int,
+            val current_participants: Int = 0,
+            val is_free: Boolean = true,
+            val price: Double? = null,
+            val created_at: String? = null,
+            val is_rsvped: Boolean = false,
+            val is_checked_in: Boolean = false
+        )
+
+        return try {
+            val rows = client.postgrest.rpc(
+                "get_event_detail",
+                buildJsonObject {
+                    put("p_event_id", eventId)
+                    put("p_user_id", userId)
+                }
+            ).decodeList<EventDetailRow>()
+
+            val row = rows.firstOrNull() ?: return null
+
+            EventDetailResult(
+                event = Event(
+                    id = row.id,
+                    groupId = row.community_id,
+                    title = row.title,
+                    description = row.description,
+                    category = parseCategory(row.category),
+                    date = row.event_date,
+                    time = row.event_time,
+                    endTime = row.end_time,
+                    location = row.location,
+                    latitude = row.latitude,
+                    longitude = row.longitude,
+                    imageUrl = row.image_url,
+                    maxParticipants = row.max_participants,
+                    currentParticipants = row.current_participants,
+                    isFree = row.is_free,
+                    price = row.price,
+                    createdAt = parseTimestamp(row.created_at)
+                ),
+                communityName = row.community_name,
+                communityImage = row.community_image,
+                hasRsvped = row.is_rsvped,
+                hasCheckedIn = row.is_checked_in
+            )
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -1366,14 +1595,23 @@ class SupabaseApiService(
 
     // ==================== REALTIME ====================
 
+    private var channelCounter = 0
+
     override fun observePosts(communityId: String): Flow<Post> {
         return callbackFlow {
-            val channel = client.channel("posts_$communityId")
-            val flow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+            val uniqueName = "posts_${communityId}_${channelCounter++}"
+            val channel = client.channel(uniqueName)
+
+            // IMPORTANT: Configure postgresChangeFlow BEFORE subscribing
+            val changeFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
                 table = "posts"
             }
+
+            // Subscribe first, then collect
+            channel.subscribe()
+
             val job = launch {
-                flow.collect { action ->
+                changeFlow.collect { action ->
                     val row = action.decodeRecord<PostRow>()
                     if (row.community_id != communityId) return@collect
                     val profile = try { getUser(row.author_id) } catch (_: Exception) { null }
@@ -1393,22 +1631,36 @@ class SupabaseApiService(
                     )
                 }
             }
-            channel.subscribe()
+
             awaitClose {
                 job.cancel()
-                launch { client.realtime.removeChannel(channel) }
+                // Use an independent scope for cleanup — the ProducerScope is being
+                // cancelled so launch{} on it would never execute removeChannel.
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                    try {
+                        client.realtime.removeChannel(channel)
+                    } catch (_: Exception) {
+                        // Channel may already be removed
+                    }
+                }
             }
         }
     }
 
     override fun observeComments(postId: String): Flow<PostComment> {
         return callbackFlow {
-            val channel = client.channel("comments_$postId")
-            val flow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+            val uniqueName = "comments_${postId}_${channelCounter++}"
+            val channel = client.channel(uniqueName)
+
+            // Configure BEFORE subscribing
+            val changeFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
                 table = "comments"
             }
+
+            channel.subscribe()
+
             val job = launch {
-                flow.collect { action ->
+                changeFlow.collect { action ->
                     val row = action.decodeRecord<CommentRow>()
                     if (row.post_id != postId) return@collect
                     val profile = try { getUser(row.user_id) } catch (_: Exception) { null }
@@ -1426,31 +1678,45 @@ class SupabaseApiService(
                     )
                 }
             }
-            channel.subscribe()
+
             awaitClose {
                 job.cancel()
-                launch { client.realtime.removeChannel(channel) }
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                    try {
+                        client.realtime.removeChannel(channel)
+                    } catch (_: Exception) { }
+                }
             }
         }
     }
 
     override fun observeJoinRequests(communityId: String): Flow<JoinRequest> {
         return callbackFlow {
-            val channel = client.channel("join_requests_$communityId")
-            val flow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+            val uniqueName = "join_requests_${communityId}_${channelCounter++}"
+            val channel = client.channel(uniqueName)
+
+            // Configure BEFORE subscribing
+            val changeFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
                 table = "join_requests"
             }
+
+            channel.subscribe()
+
             val job = launch {
-                flow.collect { action ->
+                changeFlow.collect { action ->
                     val row = action.decodeRecord<JoinRequestRow>()
                     if (row.community_id != communityId) return@collect
                     trySend(row.toJoinRequest())
                 }
             }
-            channel.subscribe()
+
             awaitClose {
                 job.cancel()
-                launch { client.realtime.removeChannel(channel) }
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                    try {
+                        client.realtime.removeChannel(channel)
+                    } catch (_: Exception) { }
+                }
             }
         }
     }

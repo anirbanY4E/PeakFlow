@@ -14,6 +14,28 @@ import com.run.peakflow.data.models.User
 import kotlinx.coroutines.flow.Flow
 
 /**
+ * Combined result from the get_event_detail RPC.
+ * Contains the event, community info, RSVP status, and check-in status in one shot.
+ */
+data class EventDetailResult(
+    val event: Event,
+    val communityName: String,
+    val communityImage: String?,
+    val hasRsvped: Boolean,
+    val hasCheckedIn: Boolean
+)
+
+/**
+ * Represents a community member with their profile info, returned by batch RPC.
+ */
+data class CommunityMemberWithProfile(
+    val membership: CommunityMembership,
+    val userName: String,
+    val userEmail: String?,
+    val userAvatarUrl: String?
+)
+
+/**
  * Represents the authentication session status
  */
 sealed interface AuthSessionStatus {
@@ -147,6 +169,14 @@ interface ApiService {
 
     suspend fun getCommunityMemberships(communityId: String): List<CommunityMembership>
 
+    /**
+     * Batch-fetch community members with profile info (eliminates N+1 user lookups).
+     * Returns triples of (membership, userName, userAvatarUrl).
+     */
+    suspend fun getCommunityMembersWithProfiles(
+        communityId: String
+    ): List<CommunityMemberWithProfile>
+
     suspend fun getMembershipRole(userId: String, communityId: String): CommunityMembership?
 
     suspend fun isUserMemberOf(userId: String, communityId: String): Boolean
@@ -170,6 +200,11 @@ interface ApiService {
     ): JoinRequest
 
     suspend fun hasUserRequestedToJoin(userId: String, communityId: String): Boolean
+
+    /**
+     * Batch-fetch all community IDs where the user has a pending join request.
+     */
+    suspend fun getPendingJoinRequestCommunityIds(userId: String): Set<String>
 
     // ==================== POSTS ====================
 
@@ -224,6 +259,12 @@ interface ApiService {
 
     suspend fun getEventsByGroupId(groupId: String): List<Event>
 
+    /**
+     * Get community events with the current user's RSVP status (eliminates N+1 RSVP checks).
+     * Returns pairs of (Event, isRsvped).
+     */
+    suspend fun getCommunityEventsWithRsvp(communityId: String): List<Pair<Event, Boolean>>
+
     suspend fun getEventById(eventId: String): Event?
 
     suspend fun getNearbyEvents(
@@ -233,6 +274,18 @@ interface ApiService {
     ): List<Event>
 
     suspend fun getAllAccessibleEvents(communityIds: List<String>): List<Event>
+
+    /**
+     * Batch-fetch all events for the user's communities with RSVP status.
+     * Eliminates the N+1 pattern of fetching events then checking RSVP for each.
+     */
+    suspend fun getUserEventsWithRsvp(category: EventCategory? = null): List<Pair<Event, Boolean>>
+
+    /**
+     * Fetch a single event with community info, RSVP status, and check-in status in one RPC call.
+     * Eliminates 4 sequential calls in EventDetailComponent.
+     */
+    suspend fun getEventDetail(eventId: String): EventDetailResult?
 
     // ==================== RSVP ====================
 
