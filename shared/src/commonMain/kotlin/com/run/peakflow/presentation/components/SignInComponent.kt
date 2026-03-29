@@ -2,13 +2,18 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.ApiService
+import com.run.peakflow.data.network.AuthSessionStatus
+import com.run.peakflow.data.repository.UserRepository
 import com.run.peakflow.domain.usecases.GetUserMembershipsUseCase
 import com.run.peakflow.domain.usecases.SignInUseCase
 import com.run.peakflow.domain.usecases.SignInWithGoogleUseCase
+import com.run.peakflow.domain.usecases.GetCurrentUserUseCase
 import com.run.peakflow.domain.validation.AuthValidation
 import com.run.peakflow.presentation.state.SignInState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,14 +36,22 @@ class SignInComponent(
     private val signIn: SignInUseCase by inject()
     private val signInWithGoogle: SignInWithGoogleUseCase by inject()
     private val getUserMemberships: GetUserMembershipsUseCase by inject()
+    private val getCurrentUser: GetCurrentUserUseCase by inject()
+    private val apiService: ApiService by inject()
+    private val userRepository: UserRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _state = MutableStateFlow(SignInState())
     val state: StateFlow<SignInState> = _state.asStateFlow()
 
+    private var sessionObserverJob: Job? = null
+
     init {
-        lifecycle.doOnDestroy { scope.cancel() }
+        lifecycle.doOnDestroy {
+            sessionObserverJob?.cancel()
+            scope.cancel()
+        }
     }
 
     fun onEmailOrPhoneChanged(value: String) {
@@ -129,13 +142,68 @@ class SignInComponent(
                 // Navigate based on user state (same logic as regular sign-in)
                 navigateBasedOnUserState(user.name.isNotBlank())
             }.onFailure { error ->
-                // Handle cancelled sign-in gracefully
-                val errorMsg = if (error.message == "Sign-in cancelled") {
-                    null // Don't show error for user cancellation
-                } else {
-                    error.message
+                // Handle cancelled or browser sign-in gracefully
+                when (error.message) {
+                    "Sign-in cancelled" -> {
+                        _state.update { it.copy(isGoogleLoading = false, error = null) }
+                    }
+                    "BROWSER_FLOW" -> {
+                        // Browser flow: keep loading state and observe session for callback
+                        println("SignInComponent: Browser flow started, observing session status...")
+                        startObservingSession()
+                    }
+                    else -> {
+                        _state.update { it.copy(isGoogleLoading = false, error = error.message) }
+                    }
                 }
-                _state.update { it.copy(isGoogleLoading = false, error = errorMsg) }
+            }
+        }
+    }
+
+    /**
+     * After browser OAuth flow is triggered, observe the Supabase session status.
+     * When the deep link callback exchanges the code for a session, the status
+     * will change to Authenticated, and we can navigate forward.
+     */
+    private fun startObservingSession() {
+        sessionObserverJob?.cancel()
+        sessionObserverJob = scope.launch {
+            apiService.observeSessionStatus().collect { status ->
+                when (status) {
+                    is AuthSessionStatus.Authenticated -> {
+                        println("SignInComponent: Session authenticated via browser flow! userId=${status.userId}")
+                        _state.update { it.copy(isGoogleLoading = false, isSuccess = true) }
+                        
+                        // CRITICAL: Set the userId in UserRepository since the browser
+                        // flow bypasses AuthRepository.signInWithGoogle() which normally
+                        // does this. Without it, getCurrentUser() and getUserMemberships()
+                        // return null/empty because they rely on userRepository.currentUserId.
+                        userRepository.setCurrentUserId(status.userId)
+                        
+                        // Look up user and navigate
+                        val user = getCurrentUser()
+                        if (user != null) {
+                            navigateBasedOnUserState(user.name.isNotBlank())
+                        } else {
+                            // User is authenticated but profile doesn't exist yet
+                            onNavigateToInviteCode()
+                        }
+                        
+                        // Stop observing after navigation
+                        sessionObserverJob?.cancel()
+                    }
+                    is AuthSessionStatus.NotAuthenticated -> {
+                        // Still waiting for callback, or user cancelled
+                        println("SignInComponent: Session not yet authenticated")
+                    }
+                    is AuthSessionStatus.Loading -> {
+                        // Session is initializing
+                    }
+                    is AuthSessionStatus.NetworkError -> {
+                        _state.update { it.copy(isGoogleLoading = false, error = "Network error during sign-in") }
+                        sessionObserverJob?.cancel()
+                    }
+                }
             }
         }
     }

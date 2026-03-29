@@ -67,6 +67,8 @@ interface ApiService {
         photoUrl: String?
     ): User
 
+    suspend fun startGoogleBrowserOAuth()
+
     suspend fun verifyOtp(
         userId: String,
         otp: String

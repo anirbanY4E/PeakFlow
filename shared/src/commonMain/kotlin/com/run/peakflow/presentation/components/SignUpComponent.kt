@@ -141,7 +141,13 @@ class SignUpComponent(
                     onNavigateToInviteCode()
                 }
             }.onFailure { error ->
-                _state.update { it.copy(isGoogleLoading = false, error = error.message) }
+                // Handle cancelled or browser sign-in gracefully
+                val errorMsg = when (error.message) {
+                    "Sign-in cancelled" -> null // Don't show error for user cancellation
+                    "BROWSER_FLOW" -> null // Browser pop-up handles the UX
+                    else -> error.message
+                }
+                _state.update { it.copy(isGoogleLoading = false, error = errorMsg) }
             }
         }
     }

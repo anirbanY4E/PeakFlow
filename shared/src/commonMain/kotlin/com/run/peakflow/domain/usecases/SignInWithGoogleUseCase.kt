@@ -29,6 +29,10 @@ class SignInWithGoogleUseCase(
                 is GoogleAuthResult.Cancelled -> {
                     Result.failure(Exception("Sign-in cancelled"))
                 }
+                
+                is GoogleAuthResult.BrowserFlow -> {
+                    Result.failure(Exception("BROWSER_FLOW"))
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)

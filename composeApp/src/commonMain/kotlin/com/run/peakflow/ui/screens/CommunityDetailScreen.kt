@@ -26,6 +26,8 @@ import com.run.peakflow.presentation.components.CommunityDetailComponent
 import com.run.peakflow.presentation.state.CommunityTab
 import com.run.peakflow.presentation.state.MemberWithUser
 import com.run.peakflow.ui.components.AvatarImage
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -312,9 +314,10 @@ private fun MemberItem(memberWithUser: MemberWithUser) {
 /**
  * Formats a timestamp (milliseconds since epoch) to a readable relative date string
  */
+@OptIn(ExperimentalTime::class)
 private fun formatTimestampToDate(timestamp: Long): String {
     return if (timestamp > 0) {
-        val now = System.currentTimeMillis()
+        val now = Clock.System.now().toEpochMilliseconds()
         val diffMs = now - timestamp
         val diffSeconds = diffMs / 1000
         val diffDays = diffSeconds / 86400

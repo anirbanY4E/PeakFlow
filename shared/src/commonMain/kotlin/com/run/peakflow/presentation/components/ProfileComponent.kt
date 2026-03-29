@@ -38,7 +38,10 @@ class ProfileComponent(
 
     init {
         lifecycle.doOnDestroy { scope.cancel() }
-        // Reload profile every time the component resumes (e.g. coming back from EditProfile)
+        // Load immediately on creation (needed for lazy-created components
+        // where the lifecycle is already RESUMED)
+        loadProfile()
+        // Also reload on subsequent resumes (e.g. coming back from EditProfile)
         lifecycle.doOnResume { loadProfile() }
     }
 

@@ -366,6 +366,10 @@ class SupabaseApiService(
         return getUser(userId) ?: throw Exception("Profile not found after Google sign-in")
     }
 
+    override suspend fun startGoogleBrowserOAuth() {
+        client.auth.signInWith(io.github.jan.supabase.auth.providers.Google)
+    }
+
     override suspend fun verifyOtp(userId: String, otp: String): Boolean {
         return try {
             val user = getUser(userId) ?: return false

@@ -521,6 +521,11 @@ class MockApiService : ApiService {
         return newUser
     }
 
+    override suspend fun startGoogleBrowserOAuth() {
+        delay(500)
+        // Mock does not actually start an ASWebAuthenticationSession
+    }
+
     override suspend fun verifyOtp(userId: String, otp: String): Boolean {
         delay(400)
         // Mock: accept any 6-digit OTP

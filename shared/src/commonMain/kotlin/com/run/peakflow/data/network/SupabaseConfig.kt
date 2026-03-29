@@ -24,8 +24,9 @@ object SupabaseConfig {
             alwaysAutoRefresh = true
             autoLoadFromStorage = true
             flowType = FlowType.PKCE
-            // supabase-kt v3.0 automatically detects multiplatform-settings on the classpath
-            // and uses it if autoLoadFromStorage = true (which is the default)
+            // Deep link configuration for iOS/Android OAuth callbacks
+            scheme = "com.run.peakflow"
+            host = "login-callback"
         }
         install(Postgrest)
         install(Storage)

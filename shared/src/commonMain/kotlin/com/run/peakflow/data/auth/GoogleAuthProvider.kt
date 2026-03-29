@@ -30,4 +30,5 @@ sealed class GoogleAuthResult {
 
     data class Error(val message: String) : GoogleAuthResult()
     data object Cancelled : GoogleAuthResult()
+    data object BrowserFlow : GoogleAuthResult()
 }
