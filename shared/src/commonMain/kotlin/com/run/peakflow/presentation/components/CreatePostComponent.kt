@@ -1,11 +1,13 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.domain.usecases.CreatePostUseCase
 import com.run.peakflow.presentation.state.CreatePostState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +29,11 @@ class CreatePostComponent(
 
     private val _state = MutableStateFlow(CreatePostState(communityId = communityId))
     val state: StateFlow<CreatePostState> = _state.asStateFlow()
+
+    init {
+        lifecycle.doOnDestroy { scope.cancel() }
+    }
+
 
     fun onContentChanged(content: String) {
         _state.update { it.copy(content = content, error = null) }

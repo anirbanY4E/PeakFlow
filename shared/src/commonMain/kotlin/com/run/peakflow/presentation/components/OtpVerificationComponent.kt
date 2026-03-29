@@ -1,12 +1,14 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.domain.usecases.ResendOtpUseCase
 import com.run.peakflow.domain.usecases.VerifyOtpUseCase
 import com.run.peakflow.presentation.state.OtpVerificationState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +41,7 @@ class OtpVerificationComponent(
     val state: StateFlow<OtpVerificationState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         startCountdown()
     }
 

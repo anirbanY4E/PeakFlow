@@ -1,12 +1,14 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.domain.usecases.CreateEventUseCase
 import com.run.peakflow.presentation.state.CreateEventState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +30,11 @@ class CreateEventComponent(
 
     private val _state = MutableStateFlow(CreateEventState(communityId = communityId))
     val state: StateFlow<CreateEventState> = _state.asStateFlow()
+
+    init {
+        lifecycle.doOnDestroy { scope.cancel() }
+    }
+
 
     fun onTitleChanged(title: String) {
         _state.update { it.copy(title = title, error = null) }

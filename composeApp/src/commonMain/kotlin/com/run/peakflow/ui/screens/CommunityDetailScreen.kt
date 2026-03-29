@@ -168,7 +168,9 @@ private fun PostsTabContent(
     onPostClick: (String) -> Unit,
     onLikeClick: (String) -> Unit
 ) {
-    if (posts.isEmpty()) {
+    // UI-layer dedup: ultimate defense against duplicate key crash from concurrent state updates
+    val uniquePosts = remember(posts) { posts.distinctBy { it.id } }
+    if (uniquePosts.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No posts yet", style = MaterialTheme.typography.bodyMedium)
         }
@@ -177,7 +179,7 @@ private fun PostsTabContent(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            items(posts, key = { it.id }) { post ->
+            items(uniquePosts, key = { it.id }) { post ->
                 CommunityPostCard(
                     post = post,
                     isLiked = post.id in likedPostIds,
@@ -257,8 +259,9 @@ private fun EventsTabContent(
     onEventClick: (String) -> Unit,
     onRsvpClick: (String) -> Unit
 ) {
+    val uniqueEvents = remember(events) { events.distinctBy { it.id } }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(events, key = { it.id }) { event ->
+        items(uniqueEvents, key = { it.id }) { event ->
             EventCard(
                 event = event,
                 isRsvped = event.id in rsvpedEventIds,

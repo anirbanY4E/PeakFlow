@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.domain.usecases.GenerateInviteCodeUseCase
 import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.GetUserInviteCodesUseCase
@@ -8,6 +9,7 @@ import com.run.peakflow.presentation.state.GenerateInviteState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +35,7 @@ class GenerateInviteComponent(
     val state: StateFlow<GenerateInviteState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         loadData()
     }
 

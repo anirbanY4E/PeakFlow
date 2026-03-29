@@ -10,7 +10,6 @@ import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.GetCommunityPostsUseCase
 import com.run.peakflow.domain.usecases.GetEventRsvpStatus
 import com.run.peakflow.domain.usecases.GetUserRoleInCommunityUseCase
-import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
 import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.presentation.state.CommunityDetailState
@@ -20,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +46,6 @@ class CommunityDetailComponent(
     private val getCommunityPosts: GetCommunityPostsUseCase by inject()
     private val getUserRoleInCommunity: GetUserRoleInCommunityUseCase by inject()
     private val likePost: LikePostUseCase by inject()
-    private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
     private val rsvpToEvent: RsvpToEvent by inject()
     private val getEventRsvpStatus: GetEventRsvpStatus by inject()
     private val eventRepository: EventRepository by inject()
@@ -57,6 +56,9 @@ class CommunityDetailComponent(
 
     private val _state = MutableStateFlow(CommunityDetailState())
     val state: StateFlow<CommunityDetailState> = _state.asStateFlow()
+
+    // Track post IDs with in-flight like operations to avoid reload conflicts
+    private val pendingLikePostIds = mutableSetOf<String>()
 
     init {
         lifecycle.doOnDestroy { scope.cancel() }
@@ -94,23 +96,13 @@ class CommunityDetailComponent(
         // Observe post state changes
         scope.launch {
             postRepository.postStateChanges.collect { change ->
-                _state.update { currentState ->
-                    // Update like status if changed
-                    val newLikedIds = if (change.likeStatusChanged) {
-                        val isLiked = hasUserLikedPost(change.postId)
-                        if (isLiked) {
-                            currentState.likedPostIds + change.postId
-                        } else {
-                            currentState.likedPostIds - change.postId
-                        }
-                    } else {
-                        currentState.likedPostIds
-                    }
+                // Skip reload for like changes on posts with pending like operations
+                // to avoid overwriting optimistic updates with stale data
+                val shouldReloadForLikes = change.likesCountChanged && change.postId !in pendingLikePostIds
 
-                    currentState.copy(likedPostIds = newLikedIds)
-                }
-                // Reload posts if counts changed OR a new post was created
-                if (change.likesCountChanged || change.commentsCountChanged || change.wasCreated) {
+                if (shouldReloadForLikes || change.commentsCountChanged || change.wasCreated) {
+                    // Small delay to let DB triggers (likes_count, comments_count) complete
+                    delay(300)
                     reloadPostsInternal()
                 }
             }
@@ -136,7 +128,27 @@ class CommunityDetailComponent(
                 val posts = getCommunityPosts(communityId)
                 // Use is_liked from the RPC response
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-                _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
+                _state.update { currentState ->
+                    // Preserve optimistic like state for pending operations
+                    val mergedLikedIds = likedIds.toMutableSet()
+                    val mergedPosts = posts.map { post ->
+                        if (post.id in pendingLikePostIds) {
+                            // Keep the optimistic state for posts with pending likes
+                            val isOptimisticallyLiked = post.id in currentState.likedPostIds
+                            if (isOptimisticallyLiked != post.isLiked) {
+                                if (isOptimisticallyLiked) mergedLikedIds.add(post.id) else mergedLikedIds.remove(post.id)
+                                post.copy(
+                                    likesCount = if (isOptimisticallyLiked) post.likesCount + 1 else (post.likesCount - 1).coerceAtLeast(0)
+                                )
+                            } else {
+                                post
+                            }
+                        } else {
+                            post
+                        }
+                    }.distinctBy { it.id } // Defensive: prevent duplicate key crash
+                    currentState.copy(posts = mergedPosts, likedPostIds = mergedLikedIds)
+                }
             } catch (e: Exception) {
                 // Silently fail
             }
@@ -152,7 +164,9 @@ class CommunityDetailComponent(
                         if (currentState.posts.any { it.id == newPost.id }) {
                             currentState
                         } else {
-                            currentState.copy(posts = listOf(newPost) + currentState.posts)
+                            // Prepend + defensive dedup to prevent duplicate key crash
+                            val updated = (listOf(newPost) + currentState.posts).distinctBy { it.id }
+                            currentState.copy(posts = updated)
                         }
                     }
                 }
@@ -210,7 +224,7 @@ class CommunityDetailComponent(
                     it.copy(
                         isLoading = false,
                         community = community,
-                        posts = posts,
+                        posts = posts.distinctBy { p -> p.id }, // Defensive dedup
                         events = events,
                         members = membersWithUsers,
                         userRole = userRole,
@@ -249,23 +263,56 @@ class CommunityDetailComponent(
     }
 
     fun onLikePostClick(postId: String) {
+        val currentState = _state.value
+        val isCurrentlyLiked = postId in currentState.likedPostIds
+
+        // Mark as pending to prevent reload from reverting optimistic update
+        pendingLikePostIds.add(postId)
+
+        // Optimistic update — immediately update UI
+        _state.update { state ->
+            val newLikedIds = if (isCurrentlyLiked) {
+                state.likedPostIds - postId
+            } else {
+                state.likedPostIds + postId
+            }
+            val newPosts = state.posts.map { post ->
+                if (post.id == postId) {
+                    post.copy(
+                        likesCount = if (isCurrentlyLiked) (post.likesCount - 1).coerceAtLeast(0) else post.likesCount + 1,
+                        isLiked = !isCurrentlyLiked
+                    )
+                } else post
+            }
+            state.copy(posts = newPosts, likedPostIds = newLikedIds)
+        }
+
         scope.launch {
             val result = likePost(postId)
-            result.onSuccess { isNowLiked ->
-                _state.update { currentState ->
-                    val newLikedIds = if (isNowLiked) {
-                        currentState.likedPostIds + postId
+            result.onSuccess {
+                // Like succeeded — remove from pending and schedule a fresh reload
+                // to get accurate server counts
+                pendingLikePostIds.remove(postId)
+                delay(500) // Let DB trigger update likes_count
+                reloadPostsInternal()
+            }.onFailure {
+                // Revert optimistic update on failure
+                pendingLikePostIds.remove(postId)
+                _state.update { state ->
+                    val revertedLikedIds = if (isCurrentlyLiked) {
+                        state.likedPostIds + postId
                     } else {
-                        currentState.likedPostIds - postId
+                        state.likedPostIds - postId
                     }
-                    val newPosts = currentState.posts.map { post ->
+                    val revertedPosts = state.posts.map { post ->
                         if (post.id == postId) {
                             post.copy(
-                                likesCount = if (isNowLiked) post.likesCount + 1 else post.likesCount - 1
+                                likesCount = if (isCurrentlyLiked) post.likesCount + 1 else (post.likesCount - 1).coerceAtLeast(0),
+                                isLiked = isCurrentlyLiked
                             )
                         } else post
                     }
-                    currentState.copy(posts = newPosts, likedPostIds = newLikedIds)
+                    state.copy(posts = revertedPosts, likedPostIds = revertedLikedIds)
                 }
             }
         }

@@ -16,6 +16,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +51,8 @@ fun FeedScreen(
                     onRefresh = { component.onRefresh() },
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    // UI-layer dedup: ultimate defense against duplicate key crash
+                    val uniquePosts = remember(state.posts) { state.posts.distinctBy { it.id } }
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         item {
                             Text(
@@ -59,7 +62,7 @@ fun FeedScreen(
                             )
                         }
 
-                        items(state.posts, key = { it.id }) { post ->
+                        items(uniquePosts, key = { it.id }) { post ->
                             PostCard(
                                 post = post,
                                 isLiked = post.id in state.likedPostIds,

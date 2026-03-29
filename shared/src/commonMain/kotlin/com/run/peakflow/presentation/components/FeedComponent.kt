@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,9 @@ class FeedComponent(
     private val _state = MutableStateFlow(FeedState())
     val state: StateFlow<FeedState> = _state.asStateFlow()
 
+    // Track post IDs with in-flight like operations to avoid reload conflicts
+    private val pendingLikePostIds = mutableSetOf<String>()
+
     init {
         lifecycle.doOnDestroy { scope.cancel() }
         loadFeed()
@@ -42,8 +46,13 @@ class FeedComponent(
     private fun observePostStateChanges() {
         scope.launch {
             postRepository.postStateChanges.collect { change ->
-                // Reload posts if counts changed OR if a new post was created
-                if (change.likesCountChanged || change.commentsCountChanged || change.wasCreated) {
+                // Skip reload for like changes on posts with pending like operations
+                // to avoid overwriting optimistic updates with stale data
+                val shouldReloadForLikes = change.likesCountChanged && change.postId !in pendingLikePostIds
+                
+                if (shouldReloadForLikes || change.commentsCountChanged || change.wasCreated) {
+                    // Small delay to let DB triggers (likes_count, comments_count) complete
+                    delay(300)
                     reloadPostsInternal()
                 }
             }
@@ -55,7 +64,27 @@ class FeedComponent(
             try {
                 val posts = getFeedPosts()
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-                _state.update { it.copy(posts = posts, likedPostIds = likedIds) }
+                _state.update { currentState ->
+                    // Preserve optimistic like state for pending operations
+                    val mergedLikedIds = likedIds.toMutableSet()
+                    val mergedPosts = posts.map { post ->
+                        if (post.id in pendingLikePostIds) {
+                            // Keep the optimistic state for posts with pending likes
+                            val isOptimisticallyLiked = post.id in currentState.likedPostIds
+                            if (isOptimisticallyLiked != post.isLiked) {
+                                if (isOptimisticallyLiked) mergedLikedIds.add(post.id) else mergedLikedIds.remove(post.id)
+                                post.copy(
+                                    likesCount = if (isOptimisticallyLiked) post.likesCount + 1 else (post.likesCount - 1).coerceAtLeast(0)
+                                )
+                            } else {
+                                post
+                            }
+                        } else {
+                            post
+                        }
+                    }.distinctBy { it.id } // Defensive: prevent duplicate key crash
+                    currentState.copy(posts = mergedPosts, likedPostIds = mergedLikedIds)
+                }
             } catch (e: Exception) {
                 // Silently fail
             }
@@ -68,7 +97,7 @@ class FeedComponent(
             try {
                 val posts = getFeedPosts()
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-                _state.update { it.copy(isLoading = false, posts = posts, likedPostIds = likedIds) }
+                _state.update { it.copy(isLoading = false, posts = posts.distinctBy { p -> p.id }, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load feed") }
             }
@@ -81,7 +110,7 @@ class FeedComponent(
             try {
                 val posts = getFeedPosts()
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-                _state.update { it.copy(isRefreshing = false, posts = posts, likedPostIds = likedIds) }
+                _state.update { it.copy(isRefreshing = false, posts = posts.distinctBy { p -> p.id }, likedPostIds = likedIds) }
             } catch (e: Exception) {
                 _state.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -99,7 +128,11 @@ class FeedComponent(
     fun onLikeClick(postId: String) {
         val currentState = _state.value
         val isCurrentlyLiked = postId in currentState.likedPostIds
-        
+
+        // Mark as pending to prevent reload from reverting optimistic update
+        pendingLikePostIds.add(postId)
+
+        // Optimistic update
         _state.update { state ->
             val newLikedIds = if (isCurrentlyLiked) {
                 state.likedPostIds - postId
@@ -109,7 +142,8 @@ class FeedComponent(
             val newPosts = state.posts.map { post ->
                 if (post.id == postId) {
                     post.copy(
-                        likesCount = if (isCurrentlyLiked) (post.likesCount - 1).coerceAtLeast(0) else post.likesCount + 1
+                        likesCount = if (isCurrentlyLiked) (post.likesCount - 1).coerceAtLeast(0) else post.likesCount + 1,
+                        isLiked = !isCurrentlyLiked
                     )
                 } else post
             }
@@ -118,7 +152,15 @@ class FeedComponent(
 
         scope.launch {
             val result = likePost(postId)
-            result.onFailure {
+            result.onSuccess {
+                // Like succeeded — remove from pending and schedule a fresh reload
+                // to get accurate server counts
+                pendingLikePostIds.remove(postId)
+                delay(500) // Let DB trigger update likes_count
+                reloadPostsInternal()
+            }.onFailure {
+                // Revert optimistic update on failure
+                pendingLikePostIds.remove(postId)
                 _state.update { state ->
                     val revertedLikedIds = if (isCurrentlyLiked) {
                         state.likedPostIds + postId
@@ -128,7 +170,8 @@ class FeedComponent(
                     val revertedPosts = state.posts.map { post ->
                         if (post.id == postId) {
                             post.copy(
-                                likesCount = if (isCurrentlyLiked) post.likesCount + 1 else (post.likesCount - 1).coerceAtLeast(0)
+                                likesCount = if (isCurrentlyLiked) post.likesCount + 1 else (post.likesCount - 1).coerceAtLeast(0),
+                                isLiked = isCurrentlyLiked
                             )
                         } else post
                     }

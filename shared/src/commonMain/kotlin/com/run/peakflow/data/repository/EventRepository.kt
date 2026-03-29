@@ -9,8 +9,7 @@ import com.run.peakflow.data.network.EventDetailResult
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.datetime.Clock
-import kotlin.time.Clock as KTimeClock // Added and aliased to avoid conflict
+import kotlin.time.Clock
 
 data class EventStateChange(
     val eventId: String,
@@ -44,7 +43,7 @@ class EventRepository(
     ): Event {
         var imageUrl: String? = null
         if (imageBytes != null) {
-            val time = KTimeClock.System.now().toEpochMilliseconds()
+            val time = Clock.System.now().toEpochMilliseconds()
             val fileName = "event_${communityId}_${time}.jpg"
             imageUrl = api.uploadImage("event-images", fileName, imageBytes)
         }

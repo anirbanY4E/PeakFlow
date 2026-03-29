@@ -6,8 +6,7 @@ import com.run.peakflow.data.network.ApiService
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlin.time.Clock as KTimeClock
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 data class PostStateChange(
     val postId: String,
@@ -45,7 +44,7 @@ class PostRepository(
     ): Post {
         var imageUrl: String? = null
         if (imageBytes != null) {
-            val time = KTimeClock.System.now().toEpochMilliseconds()
+            val time = Clock.System.now().toEpochMilliseconds()
             val fileName = "post_${authorId}_${time}.jpg"
             imageUrl = api.uploadImage("post-images", fileName, imageBytes)
         }

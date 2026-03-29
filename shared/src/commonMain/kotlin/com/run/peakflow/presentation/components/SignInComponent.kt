@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.domain.usecases.GetUserMembershipsUseCase
 import com.run.peakflow.domain.usecases.SignInUseCase
 import com.run.peakflow.domain.usecases.SignInWithGoogleUseCase
@@ -9,6 +10,7 @@ import com.run.peakflow.presentation.state.SignInState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +36,10 @@ class SignInComponent(
 
     private val _state = MutableStateFlow(SignInState())
     val state: StateFlow<SignInState> = _state.asStateFlow()
+
+    init {
+        lifecycle.doOnDestroy { scope.cancel() }
+    }
 
     fun onEmailOrPhoneChanged(value: String) {
         _state.update { it.copy(emailOrPhone = value, error = null) }

@@ -4,7 +4,6 @@ import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.models.User
 import com.run.peakflow.data.network.ApiService
 import kotlin.time.Clock
-import kotlinx.datetime.Clock as KtClock
 
 class UserRepository(
     private val api: ApiService

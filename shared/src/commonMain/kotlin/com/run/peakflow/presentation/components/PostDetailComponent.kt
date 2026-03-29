@@ -118,15 +118,23 @@ class PostDetailComponent(
 
             result.onSuccess { newComment ->
                 _state.update { currentState ->
-                    val newPost = currentState.post?.copy(
-                        commentsCount = currentState.post.commentsCount + 1
-                    )
-                    currentState.copy(
-                        isCommentLoading = false,
-                        commentText = "",
-                        comments = currentState.comments + newComment,
-                        post = newPost
-                    )
+                    // Dedup: realtime observer may have already added this comment
+                    if (currentState.comments.any { it.id == newComment.id }) {
+                        currentState.copy(
+                            isCommentLoading = false,
+                            commentText = ""
+                        )
+                    } else {
+                        val newPost = currentState.post?.copy(
+                            commentsCount = currentState.post.commentsCount + 1
+                        )
+                        currentState.copy(
+                            isCommentLoading = false,
+                            commentText = "",
+                            comments = currentState.comments + newComment,
+                            post = newPost
+                        )
+                    }
                 }
             }.onFailure { error ->
                 _state.update { it.copy(isCommentLoading = false, error = error.message) }

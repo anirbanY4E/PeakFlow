@@ -6,9 +6,11 @@ import com.run.peakflow.domain.usecases.GetUserMembershipsUseCase
 import com.run.peakflow.domain.usecases.IsUserLoggedInUseCase
 import com.run.peakflow.presentation.state.NavigationTarget
 import com.run.peakflow.presentation.state.SplashState
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +38,7 @@ class SplashComponent(
     val state: StateFlow<SplashState> = _state.asStateFlow()
 
     init {
+        lifecycle.doOnDestroy { scope.cancel() }
         checkAuthState()
     }
 

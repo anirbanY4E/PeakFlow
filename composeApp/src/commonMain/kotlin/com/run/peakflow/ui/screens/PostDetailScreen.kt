@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +54,8 @@ fun PostDetailScreen(component: PostDetailComponent) {
         }
     ) { padding ->
         if (state.post != null) {
+            // UI-layer dedup: prevent duplicate key crash from realtime + API response race
+            val uniqueComments = remember(state.comments) { state.comments.distinctBy { it.id } }
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
                 item {
                     Column(modifier = Modifier.padding(PeakFlowSpacing.screenHorizontal)) {
@@ -111,7 +114,7 @@ fun PostDetailScreen(component: PostDetailComponent) {
                     )
                 }
 
-                items(state.comments, key = { it.id }) { comment ->
+                items(uniqueComments, key = { it.id }) { comment ->
                     CommentItem(comment = comment)
                 }
                 

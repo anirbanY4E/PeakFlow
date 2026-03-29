@@ -205,7 +205,7 @@ class SupabaseApiService(
     private fun parseTimestamp(ts: String?): Long {
         if (ts == null) return 0L
         return try {
-            kotlinx.datetime.Instant.parse(ts).toEpochMilliseconds()
+            kotlin.time.Instant.parse(ts).toEpochMilliseconds()
         } catch (_: Exception) {
             0L
         }
@@ -215,7 +215,7 @@ class SupabaseApiService(
         fun parseTimestampStatic(ts: String?): Long {
             if (ts == null) return 0L
             return try {
-                kotlinx.datetime.Instant.parse(ts).toEpochMilliseconds()
+                kotlin.time.Instant.parse(ts).toEpochMilliseconds()
             } catch (_: Exception) {
                 0L
             }
@@ -949,7 +949,8 @@ class SupabaseApiService(
                 imageUrl = row.image_url,
                 likesCount = row.likes_count,
                 commentsCount = row.comments_count,
-                createdAt = parseTimestamp(row.created_at)
+                createdAt = parseTimestamp(row.created_at),
+                isLiked = row.is_liked
             )
         }
     }

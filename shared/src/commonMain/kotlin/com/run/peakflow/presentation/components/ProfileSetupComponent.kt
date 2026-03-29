@@ -1,12 +1,14 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.domain.usecases.CompleteProfileUseCase
 import com.run.peakflow.presentation.state.ProfileSetupState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +28,11 @@ class ProfileSetupComponent(
 
     private val _state = MutableStateFlow(ProfileSetupState())
     val state: StateFlow<ProfileSetupState> = _state.asStateFlow()
+
+    init {
+        lifecycle.doOnDestroy { scope.cancel() }
+    }
+
 
     fun onNameChanged(name: String) {
         _state.update { it.copy(name = name, error = null) }

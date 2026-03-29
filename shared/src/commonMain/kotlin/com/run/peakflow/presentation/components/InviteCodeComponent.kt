@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.JoinCommunityViaInviteUseCase
 import com.run.peakflow.domain.usecases.ValidateInviteCodeUseCase
@@ -8,6 +9,7 @@ import com.run.peakflow.presentation.state.InviteCodeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +31,11 @@ class InviteCodeComponent(
 
     private val _state = MutableStateFlow(InviteCodeState())
     val state: StateFlow<InviteCodeState> = _state.asStateFlow()
+
+    init {
+        lifecycle.doOnDestroy { scope.cancel() }
+    }
+
 
     fun onCodeChanged(code: String) {
         val formattedCode = code.uppercase().filter { it.isLetterOrDigit() || it == '-' }
