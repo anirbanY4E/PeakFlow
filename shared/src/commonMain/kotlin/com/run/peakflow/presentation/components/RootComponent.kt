@@ -105,6 +105,7 @@ class RootComponent(
                         navigation.pushNew(Config.PostDetail(postId))
                     },
                     onNavigateToSettings = { navigation.pushNew(Config.Settings) },
+                    onNavigateToEditProfile = { navigation.pushNew(Config.EditProfile) },
                     onLogout = { navigation.replaceAll(Config.Welcome) }
                 )
             )
@@ -184,6 +185,12 @@ class RootComponent(
                     onPostCreated = { navigation.pop() }
                 )
             )
+            is Config.EditProfile -> Child.EditProfile(
+                EditProfileComponent(
+                    componentContext = componentContext,
+                    onNavigateBack = { navigation.pop() }
+                )
+            )
         }
     }
 
@@ -236,6 +243,9 @@ class RootComponent(
 
         @Serializable
         data class CreatePost(val communityId: String) : Config()
+
+        @Serializable
+        data object EditProfile : Config()
     }
 
     sealed class Child {
@@ -255,5 +265,6 @@ class RootComponent(
         data class Settings(val component: SettingsComponent) : Child()
         data class CreateEvent(val component: CreateEventComponent) : Child()
         data class CreatePost(val component: CreatePostComponent) : Child()
+        data class EditProfile(val component: EditProfileComponent) : Child()
     }
 }

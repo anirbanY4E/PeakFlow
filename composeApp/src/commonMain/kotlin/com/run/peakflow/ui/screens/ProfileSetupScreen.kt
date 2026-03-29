@@ -1,9 +1,11 @@
 package com.run.peakflow.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -14,14 +16,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.run.peakflow.data.models.EventCategory
+import com.preat.peekaboo.image.picker.SelectionMode
+import com.preat.peekaboo.image.picker.rememberImagePickerLauncher
+import androidx.compose.runtime.rememberCoroutineScope
 import com.run.peakflow.presentation.components.ProfileSetupComponent
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
+import com.run.peakflow.ui.components.AvatarImage
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfileSetupScreen(component: ProfileSetupComponent) {
     val state by component.state.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    val imagePickerLauncher = rememberImagePickerLauncher(
+        selectionMode = SelectionMode.Single,
+        scope = scope,
+        onResult = { byteArrays ->
+            byteArrays.firstOrNull()?.let { bytes ->
+                component.onAvatarChanged(bytes)
+            }
+        }
+    )
 
     Scaffold { padding ->
         Column(
@@ -48,6 +65,39 @@ fun ProfileSetupScreen(component: ProfileSetupComponent) {
             )
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            // Avatar picker
+            Box(
+                modifier = Modifier.clickable { imagePickerLauncher.launch() },
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                AvatarImage(
+                    imageUrl = null,
+                    imageBytes = state.avatarBytes,
+                    size = 100.dp,
+                    contentDescription = "Profile avatar"
+                )
+                Surface(
+                    modifier = Modifier.size(32.dp),
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.primary,
+                    shadowElevation = 2.dp
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Change avatar",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
 
             OutlinedTextField(
                 value = state.name,

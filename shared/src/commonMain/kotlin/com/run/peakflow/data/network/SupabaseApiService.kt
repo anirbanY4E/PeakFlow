@@ -14,6 +14,7 @@ import com.run.peakflow.data.models.RequestStatus
 import com.run.peakflow.data.models.Rsvp
 import com.run.peakflow.data.models.User
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.functions.functions
@@ -25,16 +26,18 @@ import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.decodeRecord
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
-
 import io.github.jan.supabase.storage.storage
 import io.ktor.client.call.body
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -393,6 +396,32 @@ class SupabaseApiService(
         return client.auth.currentSessionOrNull()?.user?.id
     }
 
+    override fun observeSessionStatus(): Flow<AuthSessionStatus> {
+        return client.auth.sessionStatus.map { status ->
+            when (status) {
+                is SessionStatus.Authenticated -> AuthSessionStatus.Authenticated(status.session.user?.id ?: "")
+                is SessionStatus.NotAuthenticated -> AuthSessionStatus.NotAuthenticated
+                is SessionStatus.Initializing -> AuthSessionStatus.Loading
+                else -> AuthSessionStatus.NotAuthenticated
+            }
+        }
+    }
+
+    override suspend fun waitForSessionLoaded(): String? {
+        // Wait for session to finish loading from storage (not Initializing)
+        return withTimeoutOrNull(5000) {
+            // First, wait for the session to finish loading
+            client.auth.sessionStatus.first { status ->
+                status !is SessionStatus.Initializing
+            }
+            // Then return the user ID if authenticated
+            when (val status = client.auth.sessionStatus.value) {
+                is SessionStatus.Authenticated -> status.session.user?.id
+                else -> null
+            }
+        }
+    }
+
     override suspend fun logout() {
         try {
             client.auth.signOut()
@@ -404,11 +433,28 @@ class SupabaseApiService(
     // ==================== STORAGE ====================
 
     override suspend fun uploadImage(bucket: String, fileName: String, imageData: ByteArray): String {
-        val storageBucket = client.storage.from(bucket)
-        storageBucket.upload(fileName, imageData) {
-            upsert = true
+        println("DEBUG uploadImage: bucket=$bucket, fileName=$fileName, dataSize=${imageData.size}")
+        val mimeType = when {
+            fileName.endsWith(".png", ignoreCase = true) -> io.ktor.http.ContentType.Image.PNG
+            fileName.endsWith(".webp", ignoreCase = true) -> io.ktor.http.ContentType("image", "webp")
+            fileName.endsWith(".gif", ignoreCase = true) -> io.ktor.http.ContentType.Image.GIF
+            else -> io.ktor.http.ContentType.Image.JPEG
         }
-        return storageBucket.publicUrl(fileName)
+        println("DEBUG uploadImage: contentType=$mimeType")
+        try {
+            val storageBucket = client.storage.from(bucket)
+            storageBucket.upload(fileName, imageData) {
+                upsert = true
+                contentType = mimeType
+            }
+            val url = storageBucket.publicUrl(fileName)
+            println("DEBUG uploadImage: SUCCESS url=$url")
+            return url
+        } catch (e: Exception) {
+            println("DEBUG uploadImage: FAILED error=${e.message}")
+            e.printStackTrace()
+            throw e
+        }
     }
 
     // ==================== USER ====================
@@ -886,6 +932,7 @@ class SupabaseApiService(
             Post(
                 id = row.id,
                 communityId = row.community_id,
+                communityName = row.community_name,
                 authorId = row.author_id,
                 authorName = row.author_name,
                 authorAvatarUrl = row.author_avatar_url,

@@ -54,7 +54,7 @@ serve(async (req) => {
     // 1. Get the join request
     const { data: joinRequest, error: requestError } = await supabaseClient
       .from('join_requests')
-      .select('*, communities(id)')
+      .select('*')
       .eq('id', requestId)
       .eq('status', 'PENDING')
       .single()
@@ -83,12 +83,12 @@ serve(async (req) => {
     }
 
     // 3. Check if user is already a member (edge case)
-    const { data: existingMembership } = await supabaseClient
+    const { data: existingMembership } = await supabaseAdmin
       .from('memberships')
-      .select('*')
+      .select('id')
       .eq('user_id', joinRequest.user_id)
       .eq('community_id', joinRequest.community_id)
-      .single()
+      .maybeSingle()
 
     if (existingMembership) {
       // Update the request to rejected since they're already a member

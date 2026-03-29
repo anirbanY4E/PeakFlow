@@ -9,15 +9,18 @@ import com.run.peakflow.domain.usecases.GetCommunityEvents
 import com.run.peakflow.domain.usecases.GetCommunityMembersUseCase
 import com.run.peakflow.domain.usecases.GetCommunityPostsUseCase
 import com.run.peakflow.domain.usecases.GetEventRsvpStatus
+import com.run.peakflow.domain.usecases.GetUserByIdUseCase
 import com.run.peakflow.domain.usecases.GetUserRoleInCommunityUseCase
 import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
 import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.presentation.state.CommunityDetailState
 import com.run.peakflow.presentation.state.CommunityTab
+import com.run.peakflow.presentation.state.MemberWithUser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +46,7 @@ class CommunityDetailComponent(
     private val getCommunityPosts: GetCommunityPostsUseCase by inject()
     private val getCommunityEvents: GetCommunityEvents by inject()
     private val getCommunityMembers: GetCommunityMembersUseCase by inject()
+    private val getUserById: GetUserByIdUseCase by inject()
     private val getUserRoleInCommunity: GetUserRoleInCommunityUseCase by inject()
     private val likePost: LikePostUseCase by inject()
     private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
@@ -167,6 +171,12 @@ class CommunityDetailComponent(
                 val posts = getCommunityPosts(communityId)
                 val events = getCommunityEvents(communityId)
                 val members = getCommunityMembers(communityId)
+                val membersWithUsers = members.map { membership ->
+                    async {
+                        val user = try { getUserById(membership.userId) } catch (e: Exception) { null }
+                        MemberWithUser(membership, user)
+                    }
+                }.map { it.await() }
                 val userRole = getUserRoleInCommunity(communityId)
 
                 val likedIds = posts.map { it.id }
@@ -183,7 +193,7 @@ class CommunityDetailComponent(
                         community = community,
                         posts = posts,
                         events = events,
-                        members = members,
+                        members = membersWithUsers,
                         userRole = userRole,
                         likedPostIds = likedIds,
                         rsvpedEventIds = rsvpedIds

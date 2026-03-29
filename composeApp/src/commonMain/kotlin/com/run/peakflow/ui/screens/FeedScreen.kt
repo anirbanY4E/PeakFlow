@@ -95,7 +95,7 @@ fun PostCard(post: Post, isLiked: Boolean, onPostClick: () -> Unit, onLikeClick:
                 Spacer(modifier = Modifier.width(PeakFlowSpacing.elementGap))
                 Column {
                     Text(post.authorName, style = PeakFlowTypography.bodyTitle())
-                    Text("Community Post", style = PeakFlowTypography.labelSecondary(), color = MaterialTheme.colorScheme.primary)
+                    Text(post.communityName ?: "Community Post", style = PeakFlowTypography.labelSecondary(), color = MaterialTheme.colorScheme.primary)
                 }
             }
             Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))

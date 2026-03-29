@@ -54,6 +54,9 @@ kotlin {
             // Coil3 Image Loading
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+
+            // Peekaboo Image Picker
+            implementation(libs.peekaboo.image.picker)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

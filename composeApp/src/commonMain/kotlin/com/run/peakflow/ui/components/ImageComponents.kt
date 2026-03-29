@@ -20,12 +20,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Avatar image component with placeholder support.
  * Uses Coil3 for async image loading.
  *
  * @param imageUrl URL of the avatar image (null for placeholder)
+ * @param imageBytes Optional byte array for locally picked images (takes precedence over imageUrl)
  * @param modifier Modifier for the component
  * @param size Size of the avatar in dp
  * @param contentDescription Content description for accessibility
@@ -33,6 +39,7 @@ import coil3.compose.SubcomposeAsyncImage
 @Composable
 fun AvatarImage(
     imageUrl: String?,
+    imageBytes: ByteArray? = null,
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 40.dp,
     contentDescription: String? = null
@@ -42,47 +49,84 @@ fun AvatarImage(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
-        if (imageUrl != null) {
-            SubcomposeAsyncImage(
-                model = imageUrl,
-                contentDescription = contentDescription ?: "Avatar",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                loading = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
+        when {
+            imageBytes != null -> {
+                // Display local image from bytes
+                SubcomposeAsyncImage(
+                    model = imageBytes,
+                    contentDescription = contentDescription ?: "Avatar",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(size * 0.5f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    error = {
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
-                            modifier = Modifier.size(size * 0.5f),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(size * 0.2f),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                },
-                error = {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(size * 0.2f),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = contentDescription ?: "Default Avatar",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(size * 0.2f),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                )
+            }
+            imageUrl != null -> {
+                SubcomposeAsyncImage(
+                    model = imageUrl,
+                    contentDescription = contentDescription ?: "Avatar",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(size * 0.5f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    error = {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(size * 0.2f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
+            else -> {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = contentDescription ?: "Default Avatar",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(size * 0.2f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

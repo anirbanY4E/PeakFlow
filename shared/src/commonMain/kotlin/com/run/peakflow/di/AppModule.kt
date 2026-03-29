@@ -55,6 +55,7 @@ import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.domain.usecases.SignInUseCase
 import com.run.peakflow.domain.usecases.SignInWithGoogleUseCase
 import com.run.peakflow.domain.usecases.SignUpUseCase
+import com.run.peakflow.domain.usecases.UpdateUserUseCase
 import com.run.peakflow.domain.usecases.ValidateInviteCodeUseCase
 import com.run.peakflow.domain.usecases.VerifyOtpUseCase
 import com.run.peakflow.presentation.components.RootComponentFactory
@@ -97,6 +98,7 @@ val appModule = module {
     factory { IsUserLoggedInUseCase(get()) }
     factory { CompleteProfileUseCase(get(), get()) }
     factory { GetUserByIdUseCase(get()) }
+    factory { UpdateUserUseCase(get()) }
 
     // ==================== USE CASES: INVITE ====================
 

@@ -20,11 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.run.peakflow.data.models.CommunityMembership
 import com.run.peakflow.data.models.MembershipRole
 import com.run.peakflow.data.models.Post
 import com.run.peakflow.presentation.components.CommunityDetailComponent
 import com.run.peakflow.presentation.state.CommunityTab
+import com.run.peakflow.presentation.state.MemberWithUser
 import com.run.peakflow.ui.components.AvatarImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -270,29 +270,32 @@ private fun EventsTabContent(
 }
 
 @Composable
-private fun MembersTabContent(members: List<CommunityMembership>) {
+private fun MembersTabContent(members: List<MemberWithUser>) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp)) {
-        items(members, key = { it.id }) { member ->
-            MemberItem(membership = member)
+        items(members, key = { it.membership.id }) { memberWithUser ->
+            MemberItem(memberWithUser = memberWithUser)
         }
     }
 }
 
 @Composable
-private fun MemberItem(membership: CommunityMembership) {
+private fun MemberItem(memberWithUser: MemberWithUser) {
+    val membership = memberWithUser.membership
+    val user = memberWithUser.user
     // Format the timestamp to a readable date string
     val joinedDate = remember(membership.joinedAt) {
         formatTimestampToDate(membership.joinedAt)
     }
+    val displayName = user?.name?.takeIf { it.isNotBlank() } ?: user?.email ?: "Member"
     
     ListItem(
-        headlineContent = { Text("Member", style = MaterialTheme.typography.bodyMedium) },
+        headlineContent = { Text(displayName, style = MaterialTheme.typography.bodyMedium) },
         supportingContent = { Text("Joined $joinedDate", style = MaterialTheme.typography.bodySmall) },
         leadingContent = {
             AvatarImage(
-                imageUrl = null, // We don't have member avatar in CommunityMembership model
+                imageUrl = user?.avatarUrl,
                 size = 36.dp,
-                contentDescription = "Member avatar"
+                contentDescription = "$displayName avatar"
             )
         },
         trailingContent = {
@@ -304,21 +307,23 @@ private fun MemberItem(membership: CommunityMembership) {
 }
 
 /**
- * Formats a timestamp (milliseconds since epoch) to a readable date string
+ * Formats a timestamp (milliseconds since epoch) to a readable relative date string
  */
 private fun formatTimestampToDate(timestamp: Long): String {
     return if (timestamp > 0) {
-        // Simple formatting: convert to seconds and use platform-agnostic approach
-        val seconds = timestamp / 1000
-        val days = seconds / 86400
-        val years = days / 365
-        val months = (days % 365) / 30
+        val now = System.currentTimeMillis()
+        val diffMs = now - timestamp
+        val diffSeconds = diffMs / 1000
+        val diffDays = diffSeconds / 86400
+        val diffYears = diffDays / 365
+        val diffMonths = (diffDays % 365) / 30
+        val diffWeeks = diffDays / 7
         
         when {
-            years > 0 -> "$years year${if (years > 1) "s" else ""} ago"
-            months > 0 -> "$months month${if (months > 1) "s" else ""} ago"
-            days > 7 -> "${days / 7} weeks ago"
-            days > 0 -> "$days day${if (days > 1) "s" else ""} ago"
+            diffYears > 0 -> "$diffYears year${if (diffYears > 1) "s" else ""} ago"
+            diffMonths > 0 -> "$diffMonths month${if (diffMonths > 1) "s" else ""} ago"
+            diffWeeks > 0 -> "$diffWeeks week${if (diffWeeks > 1) "s" else ""} ago"
+            diffDays > 0 -> "$diffDays day${if (diffDays > 1) "s" else ""} ago"
             else -> "Recently"
         }
     } else {

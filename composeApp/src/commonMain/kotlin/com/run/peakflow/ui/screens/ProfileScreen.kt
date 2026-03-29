@@ -35,8 +35,13 @@ fun ProfileScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("Profile", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            IconButton(onClick = { component.onSettingsClick() }, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Default.Settings, "Settings", modifier = Modifier.size(20.dp))
+            Row {
+                IconButton(onClick = { component.onEditProfileClick() }, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Edit, "Edit Profile", modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = { component.onSettingsClick() }, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Settings, "Settings", modifier = Modifier.size(20.dp))
+                }
             }
         }
 

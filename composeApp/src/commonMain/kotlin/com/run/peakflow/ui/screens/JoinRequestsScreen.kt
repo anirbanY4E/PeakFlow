@@ -13,8 +13,10 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,8 +31,17 @@ import com.run.peakflow.ui.theme.PeakFlowTypography
 @Composable
 fun JoinRequestsScreen(component: JoinRequestsComponent) {
     val state by component.state.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show errors from approval/rejection in a Snackbar
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            snackbarHostState.showSnackbar(message = it, duration = SnackbarDuration.Short)
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Join Requests", style = PeakFlowTypography.bodyTitle()) },

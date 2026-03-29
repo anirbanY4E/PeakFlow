@@ -17,11 +17,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
+import com.arkivanov.essenty.lifecycle.doOnResume
 import org.koin.core.component.inject
 
 class ProfileComponent(
     componentContext: ComponentContext,
     private val onNavigateToSettings: () -> Unit,
+    private val onNavigateToEditProfile: () -> Unit,
     private val onLogout: () -> Unit
 ) : ComponentContext by componentContext, KoinComponent {
 
@@ -36,7 +38,8 @@ class ProfileComponent(
 
     init {
         lifecycle.doOnDestroy { scope.cancel() }
-        loadProfile()
+        // Reload profile every time the component resumes (e.g. coming back from EditProfile)
+        lifecycle.doOnResume { loadProfile() }
     }
 
     fun loadProfile() {
@@ -70,6 +73,10 @@ class ProfileComponent(
 
     fun onSettingsClick() {
         onNavigateToSettings()
+    }
+
+    fun onEditProfileClick() {
+        onNavigateToEditProfile()
     }
 
     fun onLogoutClick() {

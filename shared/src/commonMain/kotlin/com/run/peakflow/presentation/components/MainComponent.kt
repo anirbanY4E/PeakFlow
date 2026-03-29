@@ -15,6 +15,7 @@ class MainComponent(
     val onNavigateToEventDetail: (String) -> Unit,
     val onNavigateToPostDetail: (String) -> Unit,
     val onNavigateToSettings: () -> Unit,
+    val onNavigateToEditProfile: () -> Unit,
     val onLogout: () -> Unit
 ) : ComponentContext by componentContext {
 
@@ -50,6 +51,7 @@ class MainComponent(
     val profileComponent = ProfileComponent(
         componentContext = componentContext,
         onNavigateToSettings = onNavigateToSettings,
+        onNavigateToEditProfile = onNavigateToEditProfile,
         onLogout = onLogout
     )
 

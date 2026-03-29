@@ -11,6 +11,17 @@ import com.run.peakflow.data.models.Post
 import com.run.peakflow.data.models.PostComment
 import com.run.peakflow.data.models.Rsvp
 import com.run.peakflow.data.models.User
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Represents the authentication session status
+ */
+sealed interface AuthSessionStatus {
+    data class Authenticated(val userId: String) : AuthSessionStatus
+    object Loading : AuthSessionStatus
+    object NotAuthenticated : AuthSessionStatus
+    object NetworkError : AuthSessionStatus
+}
 
 interface ApiService {
 
@@ -41,7 +52,23 @@ interface ApiService {
 
     suspend fun resendOtp(userId: String): Boolean
 
+    /**
+     * Get the current session user ID synchronously.
+     * May return null if session is still loading.
+     */
     suspend fun getSessionUserId(): String?
+
+    /**
+     * Observe authentication session status changes.
+     * Use this for reliable session state handling.
+     */
+    fun observeSessionStatus(): Flow<AuthSessionStatus>
+
+    /**
+     * Wait for the session to be loaded from storage.
+     * Returns the user ID if authenticated, null otherwise.
+     */
+    suspend fun waitForSessionLoaded(): String?
 
     suspend fun logout()
 

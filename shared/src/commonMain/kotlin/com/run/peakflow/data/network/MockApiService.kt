@@ -16,6 +16,7 @@ import com.run.peakflow.data.models.User
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlin.random.Random
 
 class MockApiService : ApiService {
@@ -539,6 +540,16 @@ class MockApiService : ApiService {
     }
 
     override suspend fun getSessionUserId(): String? {
+        return "mock_user_123"
+    }
+
+    override fun observeSessionStatus(): Flow<AuthSessionStatus> {
+        // Mock always returns authenticated with mock user
+        return flowOf(AuthSessionStatus.Authenticated("mock_user_123"))
+    }
+
+    override suspend fun waitForSessionLoaded(): String? {
+        // Mock immediately returns mock user
         return "mock_user_123"
     }
 

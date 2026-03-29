@@ -1,11 +1,14 @@
 package com.run.peakflow.data.network
 
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
+
+
 
 object SupabaseConfig {
 
@@ -16,7 +19,14 @@ object SupabaseConfig {
         supabaseUrl = SUPABASE_URL,
         supabaseKey = SUPABASE_ANON_KEY
     ) {
-        install(Auth)
+        install(Auth) {
+            // Enable automatic session persistence and loading
+            alwaysAutoRefresh = true
+            autoLoadFromStorage = true
+            flowType = FlowType.PKCE
+            // supabase-kt v3.0 automatically detects multiplatform-settings on the classpath
+            // and uses it if autoLoadFromStorage = true (which is the default)
+        }
         install(Postgrest)
         install(Storage)
         install(Functions)

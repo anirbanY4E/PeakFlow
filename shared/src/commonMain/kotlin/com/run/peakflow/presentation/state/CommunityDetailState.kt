@@ -5,12 +5,18 @@ import com.run.peakflow.data.models.CommunityMembership
 import com.run.peakflow.data.models.Event
 import com.run.peakflow.data.models.MembershipRole
 import com.run.peakflow.data.models.Post
+import com.run.peakflow.data.models.User
+
+data class MemberWithUser(
+    val membership: CommunityMembership,
+    val user: User?
+)
 
 data class CommunityDetailState(
     val community: CommunityGroup? = null,
     val posts: List<Post> = emptyList(),
     val events: List<Event> = emptyList(),
-    val members: List<CommunityMembership> = emptyList(),
+    val members: List<MemberWithUser> = emptyList(),
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null,
@@ -25,4 +31,4 @@ enum class CommunityTab {
     EVENTS,
     MEMBERS,
     ABOUT
-}
+}
