@@ -8,6 +8,7 @@ import com.run.peakflow.domain.usecases.LikePostUseCase
 import com.run.peakflow.presentation.state.FeedState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -37,6 +38,9 @@ class FeedComponent(
     // Track post IDs with in-flight like operations to avoid reload conflicts
     private val pendingLikePostIds = mutableSetOf<String>()
 
+    // Debounce job for state change reloads
+    private var reloadDebounceJob: Job? = null
+
     init {
         lifecycle.doOnDestroy { scope.cancel() }
         loadFeed()
@@ -49,11 +53,15 @@ class FeedComponent(
                 // Skip reload for like changes on posts with pending like operations
                 // to avoid overwriting optimistic updates with stale data
                 val shouldReloadForLikes = change.likesCountChanged && change.postId !in pendingLikePostIds
-                
+
                 if (shouldReloadForLikes || change.commentsCountChanged || change.wasCreated) {
-                    // Small delay to let DB triggers (likes_count, comments_count) complete
-                    delay(300)
-                    reloadPostsInternal()
+                    // Debounce: cancel any pending reload and schedule a new one
+                    // This prevents multiple rapid-fire changes from triggering N reloads
+                    reloadDebounceJob?.cancel()
+                    reloadDebounceJob = scope.launch {
+                        delay(500) // Wait for DB triggers to complete & coalesce rapid events
+                        reloadPostsInternal()
+                    }
                 }
             }
         }
@@ -62,7 +70,9 @@ class FeedComponent(
     private fun reloadPostsInternal() {
         scope.launch {
             try {
-                val posts = getFeedPosts()
+                val currentState = _state.value
+                val totalLimit = currentState.offset + 20
+                val posts = getFeedPosts(limit = totalLimit, offset = 0)
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { currentState ->
                     // Preserve optimistic like state for pending operations
@@ -93,24 +103,63 @@ class FeedComponent(
 
     fun loadFeed() {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            _state.update { it.copy(isLoading = true, error = null, offset = 0, hasMorePosts = true) }
             try {
-                val posts = getFeedPosts()
+                val posts = getFeedPosts(limit = 20, offset = 0)
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-                _state.update { it.copy(isLoading = false, posts = posts.distinctBy { p -> p.id }, likedPostIds = likedIds) }
+                _state.update { 
+                    it.copy(
+                        isLoading = false, 
+                        posts = posts.distinctBy { p -> p.id }, 
+                        likedPostIds = likedIds,
+                        hasMorePosts = posts.size == 20
+                    ) 
+                }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load feed") }
             }
         }
     }
 
+    fun loadMore() {
+        val currentState = _state.value
+        if (currentState.isLoading || currentState.isRefreshing || currentState.isLoadingMore || !currentState.hasMorePosts) return
+
+        scope.launch {
+            _state.update { it.copy(isLoadingMore = true) }
+            try {
+                val nextOffset = currentState.offset + 20
+                val newPosts = getFeedPosts(limit = 20, offset = nextOffset)
+                val newLikedIds = newPosts.filter { it.isLiked }.map { it.id }.toSet()
+                _state.update {
+                    it.copy(
+                        isLoadingMore = false,
+                        posts = (it.posts + newPosts).distinctBy { p -> p.id },
+                        likedPostIds = it.likedPostIds + newLikedIds,
+                        offset = nextOffset,
+                        hasMorePosts = newPosts.size == 20
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(isLoadingMore = false, error = e.message) }
+            }
+        }
+    }
+
     fun onRefresh() {
         scope.launch {
-            _state.update { it.copy(isRefreshing = true) }
+            _state.update { it.copy(isRefreshing = true, offset = 0, hasMorePosts = true) }
             try {
-                val posts = getFeedPosts()
+                val posts = getFeedPosts(limit = 20, offset = 0)
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-                _state.update { it.copy(isRefreshing = false, posts = posts.distinctBy { p -> p.id }, likedPostIds = likedIds) }
+                _state.update { 
+                    it.copy(
+                        isRefreshing = false, 
+                        posts = posts.distinctBy { p -> p.id }, 
+                        likedPostIds = likedIds,
+                        hasMorePosts = posts.size == 20
+                    ) 
+                }
             } catch (e: Exception) {
                 _state.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -153,11 +202,9 @@ class FeedComponent(
         scope.launch {
             val result = likePost(postId)
             result.onSuccess {
-                // Like succeeded — remove from pending and schedule a fresh reload
-                // to get accurate server counts
+                // Like succeeded — clear pending flag.
+                // The postStateChanges observer will debounce and reload once.
                 pendingLikePostIds.remove(postId)
-                delay(500) // Let DB trigger update likes_count
-                reloadPostsInternal()
             }.onFailure {
                 // Revert optimistic update on failure
                 pendingLikePostIds.remove(postId)

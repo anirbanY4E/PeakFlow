@@ -15,6 +15,9 @@ data class MemberWithUser(
 data class CommunityDetailState(
     val community: CommunityGroup? = null,
     val posts: List<Post> = emptyList(),
+    val isPostsLoadingMore: Boolean = false,
+    val hasMorePosts: Boolean = true,
+    val postsOffset: Int = 0,
     val events: List<Event> = emptyList(),
     val members: List<MemberWithUser> = emptyList(),
     val isLoading: Boolean = false,

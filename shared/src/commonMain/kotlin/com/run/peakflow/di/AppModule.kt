@@ -103,7 +103,7 @@ val appModule = module {
     // ==================== USE CASES: INVITE ====================
 
     factory { ValidateInviteCodeUseCase(get()) }
-    factory { JoinCommunityViaInviteUseCase(get(), get()) }
+    factory { JoinCommunityViaInviteUseCase(get(), get(), get()) }
     factory { GenerateInviteCodeUseCase(get(), get()) }
     factory { GetUserInviteCodesUseCase(get(), get()) }
 
@@ -122,7 +122,7 @@ val appModule = module {
 
     factory { GetNearbyCommunities(get()) }
     factory { GetUserCommunitiesUseCase(get(), get()) }
-    factory { GetDiscoverCommunitiesUseCase(get(), get(), get()) }
+    factory { GetDiscoverCommunitiesUseCase(get(), get()) }
     factory { GetCommunityById(get()) }
 
     // ==================== USE CASES: POST ====================

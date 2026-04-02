@@ -4,14 +4,47 @@ import com.run.peakflow.data.models.CommunityMembership
 import com.run.peakflow.data.models.JoinRequest
 import com.run.peakflow.data.network.ApiService
 import com.run.peakflow.data.network.CommunityMemberWithProfile
+import kotlin.time.Clock
 
 class MembershipRepository(
     private val api: ApiService
 ) {
+    // ==================== In-Memory Cache ====================
+
+    private data class CachedMemberships(
+        val memberships: List<CommunityMembership>,
+        val cachedAt: Long
+    )
+
+    /** Cache of user memberships by userId. TTL = 30 seconds. */
+    private val membershipCache = mutableMapOf<String, CachedMemberships>()
+    private val cacheTtlMs = 30_000L // 30 seconds
+
+    private fun isCacheValid(cachedAt: Long): Boolean {
+        return (Clock.System.now().toEpochMilliseconds() - cachedAt) < cacheTtlMs
+    }
+
+    /** Invalidate membership cache for a specific user (or all users). */
+    fun invalidateMembershipCache(userId: String? = null) {
+        if (userId != null) {
+            membershipCache.remove(userId)
+        } else {
+            membershipCache.clear()
+        }
+    }
+
     // ==================== MEMBERSHIPS ====================
 
     suspend fun getUserMemberships(userId: String): List<CommunityMembership> {
-        return api.getUserMemberships(userId)
+        // Check cache first
+        val cached = membershipCache[userId]
+        if (cached != null && isCacheValid(cached.cachedAt)) {
+            return cached.memberships
+        }
+        // Fetch from network and cache
+        val memberships = api.getUserMemberships(userId)
+        membershipCache[userId] = CachedMemberships(memberships, Clock.System.now().toEpochMilliseconds())
+        return memberships
     }
 
     suspend fun getCommunityMemberships(communityId: String): List<CommunityMembership> {
@@ -45,7 +78,10 @@ class MembershipRepository(
     }
 
     suspend fun approveJoinRequest(requestId: String, reviewedBy: String): CommunityMembership {
-        return api.approveJoinRequest(requestId, reviewedBy)
+        val result = api.approveJoinRequest(requestId, reviewedBy)
+        // Invalidate cache since memberships changed
+        membershipCache.clear()
+        return result
     }
 
     suspend fun rejectJoinRequest(requestId: String, reviewedBy: String): JoinRequest {

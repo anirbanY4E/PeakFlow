@@ -32,8 +32,20 @@ import com.run.peakflow.ui.screens.SplashScreen
 import com.run.peakflow.ui.screens.WelcomeScreen
 import com.run.peakflow.ui.theme.PeakFlowTheme
 
+@OptIn(coil3.annotation.ExperimentalCoilApi::class)
 @Composable
 fun App(rootComponent: RootComponent) {
+    coil3.compose.setSingletonImageLoaderFactory { context ->
+        coil3.ImageLoader.Builder(context)
+            .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
+            .memoryCache {
+                coil3.memory.MemoryCache.Builder()
+                    .maxSizePercent(context, 0.25)
+                    .build()
+            }
+            .build()
+    }
+
     PeakFlowTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),

@@ -440,14 +440,12 @@ class SupabaseApiService(
     // ==================== STORAGE ====================
 
     override suspend fun uploadImage(bucket: String, fileName: String, imageData: ByteArray): String {
-        println("DEBUG uploadImage: bucket=$bucket, fileName=$fileName, dataSize=${imageData.size}")
         val mimeType = when {
             fileName.endsWith(".png", ignoreCase = true) -> io.ktor.http.ContentType.Image.PNG
             fileName.endsWith(".webp", ignoreCase = true) -> io.ktor.http.ContentType("image", "webp")
             fileName.endsWith(".gif", ignoreCase = true) -> io.ktor.http.ContentType.Image.GIF
             else -> io.ktor.http.ContentType.Image.JPEG
         }
-        println("DEBUG uploadImage: contentType=$mimeType")
         try {
             val storageBucket = client.storage.from(bucket)
             storageBucket.upload(fileName, imageData) {
@@ -455,11 +453,8 @@ class SupabaseApiService(
                 contentType = mimeType
             }
             val url = storageBucket.publicUrl(fileName)
-            println("DEBUG uploadImage: SUCCESS url=$url")
             return url
         } catch (e: Exception) {
-            println("DEBUG uploadImage: FAILED error=${e.message}")
-            e.printStackTrace()
             throw e
         }
     }
@@ -655,22 +650,18 @@ class SupabaseApiService(
         }
     }
 
-    override suspend fun getDiscoverCommunities(
-        city: String,
-        excludeUserCommunities: List<String>
+    override suspend fun getDiscoverCommunitiesOptimized(
+        userId: String,
+        city: String
     ): List<CommunityGroup> {
-        val rows = client.postgrest.from("communities")
-            .select {
-                filter {
-                    ilike("city", city)
-                    if (excludeUserCommunities.isNotEmpty()) {
-                        excludeUserCommunities.forEach { id ->
-                            neq("id", id)
-                        }
-                    }
-                }
+        val rows = client.postgrest.rpc(
+            "get_discover_communities",
+            buildJsonObject {
+                put("p_user_id", userId)
+                put("p_city", city)
+                put("p_limit", 50)
             }
-            .decodeList<CommunityRow>()
+        ).decodeList<CommunityRow>()
         return rows.map { it.toCommunityGroup() }
     }
 
@@ -922,7 +913,7 @@ class SupabaseApiService(
 
     // ==================== POSTS ====================
 
-    override suspend fun getCommunityPosts(communityId: String): List<Post> {
+    override suspend fun getCommunityPosts(communityId: String, limit: Int, offset: Int): List<Post> {
         @Serializable
         data class PostWithAuthorRow(
             val id: String,
@@ -939,7 +930,11 @@ class SupabaseApiService(
 
         val rows = client.postgrest.rpc(
             "get_community_posts",
-            buildJsonObject { put("p_community_id", communityId) }
+            buildJsonObject {
+                put("p_community_id", communityId)
+                put("p_limit", limit)
+                put("p_offset", offset)
+            }
         ).decodeList<PostWithAuthorRow>()
 
         return rows.map { row ->
@@ -959,7 +954,7 @@ class SupabaseApiService(
         }
     }
 
-    override suspend fun getFeedPosts(communityIds: List<String>): List<Post> {
+    override suspend fun getFeedPosts(communityIds: List<String>, limit: Int, offset: Int): List<Post> {
         val userId = getSessionUserId() ?: return emptyList()
         
         @Serializable
@@ -981,7 +976,11 @@ class SupabaseApiService(
 
         val rows = client.postgrest.rpc(
             "get_user_feed",
-            buildJsonObject { put("p_user_id", userId) }
+            buildJsonObject {
+                put("p_user_id", userId)
+                put("p_limit", limit)
+                put("p_offset", offset)
+            }
         ).decodeList<FeedPostRow>()
 
         return rows.map { row ->
@@ -1600,11 +1599,10 @@ class SupabaseApiService(
 
     // ==================== REALTIME ====================
 
-    private var channelCounter = 0
-
     override fun observePosts(communityId: String): Flow<Post> {
         return callbackFlow {
-            val uniqueName = "posts_${communityId}_${channelCounter++}"
+            val uniqueSuffix = kotlin.random.Random.nextLong(0, Long.MAX_VALUE).toString(16)
+            val uniqueName = "posts_${communityId}_${uniqueSuffix}"
             val channel = client.channel(uniqueName)
 
             // IMPORTANT: Configure postgresChangeFlow BEFORE subscribing
@@ -1619,7 +1617,8 @@ class SupabaseApiService(
                 changeFlow.collect { action ->
                     val row = action.decodeRecord<PostRow>()
                     if (row.community_id != communityId) return@collect
-                    val profile = try { getUser(row.author_id) } catch (_: Exception) { null }
+                    val profile = com.run.peakflow.data.cache.ProfileCache.get(row.author_id)
+                        ?: try { getUser(row.author_id)?.also { com.run.peakflow.data.cache.ProfileCache.put(row.author_id, it) } } catch (_: Exception) { null }
                     trySend(
                         Post(
                             id = row.id,
@@ -1654,7 +1653,8 @@ class SupabaseApiService(
 
     override fun observeComments(postId: String): Flow<PostComment> {
         return callbackFlow {
-            val uniqueName = "comments_${postId}_${channelCounter++}"
+            val uniqueSuffix = kotlin.random.Random.nextLong(0, Long.MAX_VALUE).toString(16)
+            val uniqueName = "comments_${postId}_${uniqueSuffix}"
             val channel = client.channel(uniqueName)
 
             // Configure BEFORE subscribing
@@ -1668,7 +1668,8 @@ class SupabaseApiService(
                 changeFlow.collect { action ->
                     val row = action.decodeRecord<CommentRow>()
                     if (row.post_id != postId) return@collect
-                    val profile = try { getUser(row.user_id) } catch (_: Exception) { null }
+                    val profile = com.run.peakflow.data.cache.ProfileCache.get(row.user_id)
+                        ?: try { getUser(row.user_id)?.also { com.run.peakflow.data.cache.ProfileCache.put(row.user_id, it) } } catch (_: Exception) { null }
                     trySend(
                         PostComment(
                             id = row.id,
@@ -1697,7 +1698,8 @@ class SupabaseApiService(
 
     override fun observeJoinRequests(communityId: String): Flow<JoinRequest> {
         return callbackFlow {
-            val uniqueName = "join_requests_${communityId}_${channelCounter++}"
+            val uniqueSuffix = kotlin.random.Random.nextLong(0, Long.MAX_VALUE).toString(16)
+            val uniqueName = "join_requests_${communityId}_${uniqueSuffix}"
             val channel = client.channel(uniqueName)
 
             // Configure BEFORE subscribing

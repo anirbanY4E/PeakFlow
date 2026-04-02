@@ -8,8 +8,10 @@ import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.presentation.state.EventsListState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +33,9 @@ class EventsListComponent(
     private val _state = MutableStateFlow(EventsListState())
     val state: StateFlow<EventsListState> = _state.asStateFlow()
 
+    // Debounce job for state change reloads
+    private var reloadDebounceJob: Job? = null
+
     init {
         lifecycle.doOnDestroy { scope.cancel() }
         loadEvents()
@@ -40,9 +45,13 @@ class EventsListComponent(
     private fun observeEventStateChanges() {
         scope.launch {
             eventRepository.eventStateChanges.collect { change ->
-                // Reload events if anything significant changed
+                // Debounce: coalesce rapid-fire changes into a single reload
                 if (change.rsvpStatusChanged || change.participantCountChanged || change.wasCreated) {
-                    loadEvents()
+                    reloadDebounceJob?.cancel()
+                    reloadDebounceJob = scope.launch {
+                        delay(500)
+                        loadEvents()
+                    }
                 }
             }
         }

@@ -22,6 +22,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +61,10 @@ class CommunityDetailComponent(
     // Track post IDs with in-flight like operations to avoid reload conflicts
     private val pendingLikePostIds = mutableSetOf<String>()
 
+    // Debounce jobs for state change reloads
+    private var eventsReloadDebounceJob: Job? = null
+    private var postsReloadDebounceJob: Job? = null
+
     init {
         lifecycle.doOnDestroy { scope.cancel() }
         loadCommunity()
@@ -86,9 +91,13 @@ class CommunityDetailComponent(
 
                     currentState.copy(rsvpedEventIds = newRsvpedIds)
                 }
-                // Reload events if participant count changed OR a new event was created
+                // Debounce reload for event changes
                 if (change.participantCountChanged || change.wasCreated) {
-                    reloadEventsInternal()
+                    eventsReloadDebounceJob?.cancel()
+                    eventsReloadDebounceJob = scope.launch {
+                        delay(500)
+                        reloadEventsInternal()
+                    }
                 }
             }
         }
@@ -101,9 +110,12 @@ class CommunityDetailComponent(
                 val shouldReloadForLikes = change.likesCountChanged && change.postId !in pendingLikePostIds
 
                 if (shouldReloadForLikes || change.commentsCountChanged || change.wasCreated) {
-                    // Small delay to let DB triggers (likes_count, comments_count) complete
-                    delay(300)
-                    reloadPostsInternal()
+                    // Debounce: coalesce rapid-fire changes into a single reload
+                    postsReloadDebounceJob?.cancel()
+                    postsReloadDebounceJob = scope.launch {
+                        delay(500)
+                        reloadPostsInternal()
+                    }
                 }
             }
         }
@@ -125,7 +137,9 @@ class CommunityDetailComponent(
     private fun reloadPostsInternal() {
         scope.launch {
             try {
-                val posts = getCommunityPosts(communityId)
+                val currentState = _state.value
+                val totalLimit = currentState.postsOffset + 20
+                val posts = getCommunityPosts(communityId, limit = totalLimit, offset = 0)
                 // Use is_liked from the RPC response
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { currentState ->
@@ -178,12 +192,12 @@ class CommunityDetailComponent(
 
     fun loadCommunity() {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            _state.update { it.copy(isLoading = true, error = null, postsOffset = 0, hasMorePosts = true) }
 
             try {
                 // Parallelize all 4 independent fetches
                 val communityDeferred = async { getCommunityById(communityId) }
-                val postsDeferred = async { getCommunityPosts(communityId) }
+                val postsDeferred = async { getCommunityPosts(communityId, limit = 20, offset = 0) }
                 val eventsWithRsvpDeferred = async { eventRepository.getCommunityEventsWithRsvp(communityId) }
                 val membersDeferred = async { membershipRepository.getCommunityMembersWithProfiles(communityId) }
                 val userRoleDeferred = async { getUserRoleInCommunity(communityId) }
@@ -225,6 +239,7 @@ class CommunityDetailComponent(
                         isLoading = false,
                         community = community,
                         posts = posts.distinctBy { p -> p.id }, // Defensive dedup
+                        hasMorePosts = posts.size == 20,
                         events = events,
                         members = membersWithUsers,
                         userRole = userRole,
@@ -234,6 +249,31 @@ class CommunityDetailComponent(
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
+            }
+        }
+    }
+
+    fun loadMorePosts() {
+        val currentState = _state.value
+        if (currentState.isLoading || currentState.isRefreshing || currentState.isPostsLoadingMore || !currentState.hasMorePosts) return
+
+        scope.launch {
+            _state.update { it.copy(isPostsLoadingMore = true) }
+            try {
+                val nextOffset = currentState.postsOffset + 20
+                val newPosts = getCommunityPosts(communityId, limit = 20, offset = nextOffset)
+                val newLikedIds = newPosts.filter { it.isLiked }.map { it.id }.toSet()
+                _state.update {
+                    it.copy(
+                        isPostsLoadingMore = false,
+                        posts = (it.posts + newPosts).distinctBy { p -> p.id },
+                        likedPostIds = it.likedPostIds + newLikedIds,
+                        postsOffset = nextOffset,
+                        hasMorePosts = newPosts.size == 20
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(isPostsLoadingMore = false, error = e.message) }
             }
         }
     }
@@ -290,11 +330,9 @@ class CommunityDetailComponent(
         scope.launch {
             val result = likePost(postId)
             result.onSuccess {
-                // Like succeeded — remove from pending and schedule a fresh reload
-                // to get accurate server counts
+                // Like succeeded — clear pending flag.
+                // The postStateChanges observer will debounce and reload once.
                 pendingLikePostIds.remove(postId)
-                delay(500) // Let DB trigger update likes_count
-                reloadPostsInternal()
             }.onFailure {
                 // Revert optimistic update on failure
                 pendingLikePostIds.remove(postId)

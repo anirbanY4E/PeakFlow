@@ -7,6 +7,7 @@ import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
+import kotlin.time.Duration.Companion.seconds
 
 
 
@@ -19,6 +20,12 @@ object SupabaseConfig {
         supabaseUrl = SUPABASE_URL,
         supabaseKey = SUPABASE_ANON_KEY
     ) {
+        defaultSerializer = io.github.jan.supabase.serializer.KotlinXSerializer(kotlinx.serialization.json.Json {
+            isLenient = true
+            ignoreUnknownKeys = true
+            explicitNulls = false
+            encodeDefaults = false
+        })
         install(Auth) {
             // Enable automatic session persistence and loading
             alwaysAutoRefresh = true
@@ -31,6 +38,10 @@ object SupabaseConfig {
         install(Postgrest)
         install(Storage)
         install(Functions)
-        install(Realtime)
+        install(Realtime) {
+            // Connect only when a channel is subscribed (lazy),
+            // not eagerly on app startup
+            reconnectDelay = 5.seconds // Less aggressive reconnection
+        }
     }
 }

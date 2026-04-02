@@ -11,6 +11,20 @@ class UserRepository(
     // Cache of current user ID (backed by persistent Supabase session)
     private var currentUserId: String? = null
 
+    // ==================== In-Memory Cache ====================
+
+    private data class CachedUser(val user: User, val cachedAt: Long)
+
+    /** Cache of user profiles by userId. TTL = 30 seconds. */
+    private val userCache = mutableMapOf<String, CachedUser>()
+    private val cacheTtlMs = 30_000L // 30 seconds
+
+    private fun isCacheValid(cachedAt: Long): Boolean {
+        return (Clock.System.now().toEpochMilliseconds() - cachedAt) < cacheTtlMs
+    }
+
+    // ==================== Public API ====================
+
     fun setCurrentUserId(userId: String?) {
         currentUserId = userId
     }
@@ -18,12 +32,22 @@ class UserRepository(
     fun getCurrentUserId(): String? = currentUserId
 
     suspend fun getUser(userId: String): User? {
-        return api.getUser(userId)
+        // Check cache first
+        val cached = userCache[userId]
+        if (cached != null && isCacheValid(cached.cachedAt)) {
+            return cached.user
+        }
+        // Fetch from network and cache
+        val user = api.getUser(userId)
+        if (user != null) {
+            userCache[userId] = CachedUser(user, Clock.System.now().toEpochMilliseconds())
+        }
+        return user
     }
 
     suspend fun getCurrentUser(): User? {
         val userId = currentUserId ?: return null
-        return api.getUser(userId)
+        return getUser(userId)
     }
 
     suspend fun updateUser(
@@ -41,7 +65,10 @@ class UserRepository(
         }
         val userToUpdate = user.copy(avatarUrl = updatedAvatarUrl)
         println("DEBUG UserRepo.updateUser: updating profile with avatarUrl=$updatedAvatarUrl")
-        return api.updateUser(userToUpdate)
+        val updated = api.updateUser(userToUpdate)
+        // Invalidate cache so next read gets fresh data
+        userCache[updated.id] = CachedUser(updated, Clock.System.now().toEpochMilliseconds())
+        return updated
     }
 
     suspend fun completeProfile(
@@ -57,7 +84,10 @@ class UserRepository(
             val fileName = "avatar_${userId}_${time}.jpg"
             avatarUrl = api.uploadImage("avatars", fileName, avatarBytes)
         }
-        return api.completeProfile(userId, name, city, interests, avatarUrl)
+        val user = api.completeProfile(userId, name, city, interests, avatarUrl)
+        // Update cache with fresh profile
+        userCache[user.id] = CachedUser(user, Clock.System.now().toEpochMilliseconds())
+        return user
     }
 
     /**
@@ -81,6 +111,7 @@ class UserRepository(
 
     suspend fun logout() {
         currentUserId = null
+        userCache.clear()
         api.logout()
     }
 }

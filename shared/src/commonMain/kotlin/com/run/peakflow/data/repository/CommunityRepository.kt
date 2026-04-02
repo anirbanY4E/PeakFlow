@@ -16,14 +16,16 @@ class CommunityRepository(
     }
 
     suspend fun getCommunityById(communityId: String): CommunityGroup? {
-        return api.getCommunityById(communityId)
+        return com.run.peakflow.data.cache.DataCache.getOrFetchCommunity(communityId) {
+            api.getCommunityById(communityId)
+        }
     }
 
     suspend fun getDiscoverCommunities(
-        city: String,
-        excludeUserCommunities: List<String>
+        userId: String,
+        city: String
     ): List<CommunityGroup> {
-        return api.getDiscoverCommunities(city, excludeUserCommunities)
+        return api.getDiscoverCommunitiesOptimized(userId, city)
     }
 
     suspend fun createCommunity(

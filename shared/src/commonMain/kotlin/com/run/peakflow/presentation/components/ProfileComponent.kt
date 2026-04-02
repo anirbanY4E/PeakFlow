@@ -10,6 +10,7 @@ import com.run.peakflow.presentation.state.ProfileStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,13 +37,20 @@ class ProfileComponent(
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
+    // Guard: prevent double-load when init triggers both loadProfile() and doOnResume
+    private var hasLoadedOnce = false
+
     init {
         lifecycle.doOnDestroy { scope.cancel() }
         // Load immediately on creation (needed for lazy-created components
         // where the lifecycle is already RESUMED)
         loadProfile()
         // Also reload on subsequent resumes (e.g. coming back from EditProfile)
-        lifecycle.doOnResume { loadProfile() }
+        lifecycle.doOnResume {
+            if (hasLoadedOnce) {
+                loadProfile()
+            }
+        }
     }
 
     fun loadProfile() {
@@ -50,9 +58,14 @@ class ProfileComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
-                val user = getCurrentUser()
-                val memberships = getUserMemberships()
-                val attendance = getUserAttendanceHistory()
+                // Parallelize all 3 independent calls
+                val userDeferred = async { getCurrentUser() }
+                val membershipsDeferred = async { getUserMemberships() }
+                val attendanceDeferred = async { getUserAttendanceHistory() }
+
+                val user = userDeferred.await()
+                val memberships = membershipsDeferred.await()
+                val attendance = attendanceDeferred.await()
 
                 val stats = ProfileStats(
                     communitiesCount = memberships.size,
@@ -71,6 +84,8 @@ class ProfileComponent(
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
+
+            hasLoadedOnce = true
         }
     }
 

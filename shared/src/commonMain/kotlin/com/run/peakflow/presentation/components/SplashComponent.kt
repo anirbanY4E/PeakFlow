@@ -10,8 +10,8 @@ import com.arkivanov.essenty.lifecycle.doOnDestroy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,15 +44,19 @@ class SplashComponent(
 
     private fun checkAuthState() {
         scope.launch {
-            delay(500) // Show splash briefly
-
             if (!isUserLoggedIn()) {
                 _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.WELCOME) }
                 onNavigateToWelcome()
                 return@launch
             }
 
-            val user = getCurrentUser()
+            // Parallelize user + memberships fetch (both independent after login check)
+            val userDeferred = async { getCurrentUser() }
+            val membershipsDeferred = async { getUserMemberships() }
+
+            val user = userDeferred.await()
+            val memberships = membershipsDeferred.await()
+
             if (user == null) {
                 _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.WELCOME) }
                 onNavigateToWelcome()
@@ -61,8 +65,6 @@ class SplashComponent(
 
             // Check if profile is complete
             if (user.name.isBlank()) {
-                // Check if user has a community first
-                val memberships = getUserMemberships()
                 if (memberships.isEmpty()) {
                     _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.INVITE_CODE) }
                     onNavigateToInviteCode()
@@ -74,7 +76,6 @@ class SplashComponent(
             }
 
             // Check if user has at least one community
-            val memberships = getUserMemberships()
             if (memberships.isEmpty()) {
                 _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.INVITE_CODE) }
                 onNavigateToInviteCode()

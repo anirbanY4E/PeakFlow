@@ -24,12 +24,12 @@ class PostRepository(
 
     // ==================== POSTS ====================
 
-    suspend fun getCommunityPosts(communityId: String): List<Post> {
-        return api.getCommunityPosts(communityId)
+    suspend fun getCommunityPosts(communityId: String, limit: Int = 20, offset: Int = 0): List<Post> {
+        return api.getCommunityPosts(communityId, limit, offset)
     }
 
-    suspend fun getFeedPosts(communityIds: List<String>): List<Post> {
-        return api.getFeedPosts(communityIds)
+    suspend fun getFeedPosts(communityIds: List<String>, limit: Int = 50, offset: Int = 0): List<Post> {
+        return api.getFeedPosts(communityIds, limit, offset)
     }
 
     suspend fun getPostById(postId: String): Post? {

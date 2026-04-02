@@ -143,9 +143,9 @@ interface ApiService {
 
     suspend fun getCommunityById(communityId: String): CommunityGroup?
 
-    suspend fun getDiscoverCommunities(
-        city: String,
-        excludeUserCommunities: List<String>
+    suspend fun getDiscoverCommunitiesOptimized(
+        userId: String,
+        city: String
     ): List<CommunityGroup>
 
     suspend fun searchCommunities(
@@ -210,9 +210,9 @@ interface ApiService {
 
     // ==================== POSTS ====================
 
-    suspend fun getCommunityPosts(communityId: String): List<Post>
+    suspend fun getCommunityPosts(communityId: String, limit: Int = 20, offset: Int = 0): List<Post>
 
-    suspend fun getFeedPosts(communityIds: List<String>): List<Post>
+    suspend fun getFeedPosts(communityIds: List<String>, limit: Int = 50, offset: Int = 0): List<Post>
 
     suspend fun getPostById(postId: String): Post?
 

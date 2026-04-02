@@ -127,6 +127,9 @@ fun CommunityDetailScreen(component: CommunityDetailComponent) {
                             CommunityTab.POSTS -> PostsTabContent(
                                 posts = state.posts,
                                 likedPostIds = state.likedPostIds,
+                                isPostsLoadingMore = state.isPostsLoadingMore,
+                                hasMorePosts = state.hasMorePosts,
+                                onLoadMore = { component.loadMorePosts() },
                                 onPostClick = { component.onPostClick(it) },
                                 onLikeClick = { component.onLikePostClick(it) }
                             )
@@ -167,6 +170,9 @@ private fun CompactCommunityInfo(description: String) {
 private fun PostsTabContent(
     posts: List<Post>,
     likedPostIds: Set<String>,
+    isPostsLoadingMore: Boolean,
+    hasMorePosts: Boolean,
+    onLoadMore: () -> Unit,
     onPostClick: (String) -> Unit,
     onLikeClick: (String) -> Unit
 ) {
@@ -177,7 +183,21 @@ private fun PostsTabContent(
             Text("No posts yet", style = MaterialTheme.typography.bodyMedium)
         }
     } else {
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+        LaunchedEffect(listState, hasMorePosts, isPostsLoadingMore) {
+            androidx.compose.runtime.snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+                .collect { lastIndex ->
+                    if (lastIndex != null && lastIndex >= uniquePosts.size - 2) {
+                        if (hasMorePosts && !isPostsLoadingMore) {
+                            onLoadMore()
+                        }
+                    }
+                }
+        }
+
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -188,6 +208,16 @@ private fun PostsTabContent(
                     onPostClick = { onPostClick(post.id) },
                     onLikeClick = { onLikeClick(post.id) }
                 )
+            }
+            if (isPostsLoadingMore) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ import com.run.peakflow.domain.usecases.GetPostCommentsUseCase
 import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
 import com.run.peakflow.presentation.state.PostDetailState
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,10 +53,17 @@ class PostDetailComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
+                // Fetch post first (community depends on its communityId)
                 val post = getPostById(postId)
-                val community = post?.let { getCommunityById(it.communityId) }
-                val comments = getPostComments(postId)
-                val hasLiked = hasUserLikedPost(postId)
+
+                // Then parallelize the 3 independent calls
+                val communityDeferred = async { post?.let { getCommunityById(it.communityId) } }
+                val commentsDeferred = async { getPostComments(postId) }
+                val hasLikedDeferred = async { hasUserLikedPost(postId) }
+
+                val community = communityDeferred.await()
+                val comments = commentsDeferred.await()
+                val hasLiked = hasLikedDeferred.await()
 
                 _state.update {
                     it.copy(

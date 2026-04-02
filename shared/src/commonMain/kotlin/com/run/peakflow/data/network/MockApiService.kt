@@ -722,12 +722,13 @@ class MockApiService : ApiService {
         return communities.find { it.id == communityId }
     }
 
-    override suspend fun getDiscoverCommunities(
-        city: String,
-        excludeUserCommunities: List<String>
+    override suspend fun getDiscoverCommunitiesOptimized(
+        userId: String,
+        city: String
     ): List<CommunityGroup> {
         delay(400)
-        return communities.filter { it.city.equals(city, ignoreCase = true) && !excludeUserCommunities.contains(it.id) }
+        val userCommunityIds = memberships.filter { it.userId == userId }.map { it.communityId }
+        return communities.filter { it.city.equals(city, ignoreCase = true) && it.id !in userCommunityIds }
     }
 
     override suspend fun searchCommunities(
@@ -919,14 +920,14 @@ class MockApiService : ApiService {
 
     // ==================== POSTS ====================
 
-    override suspend fun getCommunityPosts(communityId: String): List<Post> {
+    override suspend fun getCommunityPosts(communityId: String, limit: Int, offset: Int): List<Post> {
         delay(400)
         return posts
             .filter { it.communityId == communityId }
             .sortedByDescending { it.createdAt }
     }
 
-    override suspend fun getFeedPosts(communityIds: List<String>): List<Post> {
+    override suspend fun getFeedPosts(communityIds: List<String>, limit: Int, offset: Int): List<Post> {
         delay(400)
         return posts
             .filter { it.communityId in communityIds }

@@ -8,10 +8,10 @@ class GetFeedPostsUseCase(
     private val postRepository: PostRepository,
     private val userRepository: UserRepository
 ) {
-    suspend operator fun invoke(): List<Post> {
+    suspend operator fun invoke(limit: Int = 50, offset: Int = 0): List<Post> {
         val userId = userRepository.getCurrentUserId() ?: return emptyList()
         // The get_user_feed RPC already joins on memberships internally,
         // so we don't need to fetch memberships client-side.
-        return postRepository.getFeedPosts(emptyList())
+        return postRepository.getFeedPosts(emptyList(), limit, offset)
     }
 }
