@@ -24,7 +24,9 @@ class SignUpComponent(
     private val onNavigateBack: () -> Unit,
     private val onNavigateToOtp: (userId: String, sentTo: String) -> Unit,
     private val onNavigateToSignIn: () -> Unit,
-    private val onNavigateToInviteCode: () -> Unit = {}
+    private val onNavigateToInviteCode: () -> Unit = {},
+    private val onNavigateToMain: () -> Unit = {},
+    private val onNavigateToProfileSetup: () -> Unit = {}
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val signUp: SignUpUseCase by inject()
@@ -134,11 +136,15 @@ class SignUpComponent(
             result.onSuccess { user ->
                 _state.update { it.copy(isGoogleLoading = false, isSuccess = true, userId = user.id) }
 
-                // Google users skip OTP verification
-                // Navigate based on profile completion
+                // Google sign-up with Supabase is idempotent — if the user already
+                // exists (same email), Supabase links the identity and signs them in.
+                // Navigate based on their actual state, not the sign-up assumption.
                 val memberships = getUserMemberships()
-                if (memberships.isEmpty()) {
-                    onNavigateToInviteCode()
+                when {
+                    user.name.isBlank() && memberships.isEmpty() -> onNavigateToInviteCode()
+                    user.name.isBlank() -> onNavigateToProfileSetup()
+                    memberships.isEmpty() -> onNavigateToInviteCode()
+                    else -> onNavigateToMain()
                 }
             }.onFailure { error ->
                 // Handle cancelled or browser sign-in gracefully

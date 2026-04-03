@@ -7,23 +7,22 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.NoCredentialException
+
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.run.peakflow.utils.ActivityProvider
 import kotlinx.coroutines.CancellationException
 
 /**
- * Android implementation of Google Sign-In using Credential Manager (Native One Tap).
+ * Android implementation of Google Sign-In using Credential Manager.
  *
- * Uses the recommended two-step pattern:
- *  1. Try a fast, frictionless sign-in with previously authorized accounts.
- *  2. On [NoCredentialException] fall back to the full account picker so the user
- *     can explicitly choose or add a Google account.
+ * Always shows the full account picker (`filterByAuthorizedAccounts = false`)
+ * so that the user can choose from ALL Google accounts on the device.
  *
- * This prevents the "credential not available" error that occurs after calling
- * [signOut], because the first attempt will quickly fail and the picker will
- * appear instead of the OS trying to auto-select a now-invalid credential.
+ * Note: we intentionally skip the "fast-path" (`filterByAuthorizedAccounts = true`)
+ * because [clearCredentialState] only clears the cached session, not the OAuth
+ * authorization grant. This means a previously selected account would always
+ * appear as the only option, preventing the user from switching accounts.
  */
 class AndroidGoogleAuthProvider : GoogleAuthProvider {
 
@@ -38,34 +37,15 @@ class AndroidGoogleAuthProvider : GoogleAuthProvider {
 
         val credentialManager = CredentialManager.create(activity)
 
-        // ── Step 1: Fast-path — only accounts already authorized for this app ──────────
-        val fastPathOption = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(true)   // only previously-used accounts
-            .setServerClientId(webClientId)
-            .setAutoSelectEnabled(true)             // auto-pick if exactly one match
-            .build()
-
-        return try {
-            val result = credentialManager.getCredential(
-                request = GetCredentialRequest.Builder()
-                    .addCredentialOption(fastPathOption)
-                    .build(),
-                context = activity
-            )
-            handleCredentialResponse(result)
-        } catch (e: NoCredentialException) {
-            // No previously-authorized account — fall through to the account picker.
-            Log.d("GoogleAuth", "No authorized credential, showing full picker: ${e.message}")
-            signInWithPicker(activity, credentialManager)
-        } catch (e: GetCredentialCancellationException) {
-            GoogleAuthResult.Cancelled
-        } catch (e: CancellationException) {
-            throw e // Must rethrow coroutine cancellation
-        } catch (e: Exception) {
-            // Any other error on fast-path → try the picker before giving up.
-            Log.w("GoogleAuth", "Fast-path failed, falling back to picker", e)
-            signInWithPicker(activity, credentialManager)
-        }
+        // Always show the full account picker with ALL Google accounts on the device.
+        //
+        // Why we skip the fast-path (filterByAuthorizedAccounts=true):
+        //   clearCredentialState() only clears the cached *session* — it does NOT
+        //   revoke the OAuth authorization grant. So after logout, the previously
+        //   used account is still "authorized" and the fast-path would show a
+        //   bottom-sheet with only that one account, preventing the user from
+        //   switching to a different Google account.
+        return signInWithPicker(activity, credentialManager)
     }
 
     /**

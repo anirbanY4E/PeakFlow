@@ -1,22 +1,29 @@
 package com.run.peakflow.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.CommunityGroup
 import com.run.peakflow.presentation.components.CommunitiesListComponent
 import com.run.peakflow.presentation.state.CommunitiesTab
@@ -32,27 +39,55 @@ fun CommunitiesListScreen(
 ) {
     val state by component.state.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Text(
             text = "Communities",
             style = PeakFlowTypography.screenTitle(),
             modifier = Modifier.padding(horizontal = PeakFlowSpacing.screenHorizontal, vertical = PeakFlowSpacing.sectionGap)
         )
 
-        TabRow(
-            selectedTabIndex = if (state.selectedTab == CommunitiesTab.MY_GROUPS) 0 else 1,
-            containerColor = MaterialTheme.colorScheme.surface,
-            divider = { HorizontalDivider(thickness = 0.5.dp) }
+        // Modern Tab Bar using standard ScrollableTabRow for compatibility
+        val selectedIndex = if (state.selectedTab == CommunitiesTab.MY_GROUPS) 0 else 1
+        
+        ScrollableTabRow(
+            selectedTabIndex = selectedIndex,
+            containerColor = Color.Transparent,
+            divider = {},
+            edgePadding = 20.dp,
+            indicator = { tabPositions ->
+                if (selectedIndex < tabPositions.size) {
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         ) {
             Tab(
                 selected = state.selectedTab == CommunitiesTab.MY_GROUPS,
                 onClick = { component.onTabSelected(CommunitiesTab.MY_GROUPS) },
-                text = { Text("MY GROUPS", style = MaterialTheme.typography.labelMedium) }
+                text = { 
+                    Text(
+                        "MY GROUPS", 
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (state.selectedTab == CommunitiesTab.MY_GROUPS) FontWeight.Bold else FontWeight.Medium
+                    ) 
+                },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Tab(
                 selected = state.selectedTab == CommunitiesTab.DISCOVER,
                 onClick = { component.onTabSelected(CommunitiesTab.DISCOVER) },
-                text = { Text("DISCOVER", style = MaterialTheme.typography.labelMedium) }
+                text = { 
+                    Text(
+                        "DISCOVER", 
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (state.selectedTab == CommunitiesTab.DISCOVER) FontWeight.Bold else FontWeight.Medium
+                    ) 
+                },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -64,10 +99,15 @@ fun CommunitiesListScreen(
             val communities = if (state.selectedTab == CommunitiesTab.MY_GROUPS) state.myGroups else state.discoverGroups
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = PeakFlowSpacing.screenHorizontal),
-                verticalArrangement = Arrangement.spacedBy(PeakFlowSpacing.elementGap)
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = PeakFlowSpacing.screenHorizontal,
+                    end = PeakFlowSpacing.screenHorizontal,
+                    top = 16.dp,
+                    bottom = 32.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item { Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap)) }
                 items(communities, key = { it.id }) { community ->
                     CommunityCard(
                         community = community,
@@ -83,35 +123,99 @@ fun CommunitiesListScreen(
 }
 
 @Composable
-fun CommunityCard(community: CommunityGroup, isMember: Boolean, isPending: Boolean, onCommunityClick: () -> Unit, onRequestToJoinClick: () -> Unit) {
+fun CommunityCard(
+    community: CommunityGroup, 
+    isMember: Boolean, 
+    isPending: Boolean, 
+    onCommunityClick: () -> Unit, 
+    onRequestToJoinClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onCommunityClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onCommunityClick() },
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = CardDefaults.outlinedCardBorder()
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        Row(modifier = Modifier.padding(PeakFlowSpacing.cardPadding), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(16.dp), 
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             CommunityImage(
                 imageUrl = community.imageUrl,
                 emoji = community.category.emoji,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(14.dp)),
                 contentDescription = "${community.title} image"
             )
-            Spacer(modifier = Modifier.width(PeakFlowSpacing.elementGap))
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
             Column(modifier = Modifier.weight(1f)) {
-                Text(community.title, style = PeakFlowTypography.bodyTitle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${community.memberCount} members • ${community.city}", style = PeakFlowTypography.labelSecondary())
-            }
-            if (!isMember) {
-                IconButton(onClick = onRequestToJoinClick, enabled = !isPending) {
+                Text(
+                    text = community.title, 
+                    style = PeakFlowTypography.bodyTitle().copy(fontSize = 16.sp), 
+                    maxLines = 1, 
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (isPending) Icons.Default.HourglassBottom else Icons.Default.AddCircleOutline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        Icons.Default.Groups, 
+                        null, 
+                        modifier = Modifier.size(14.dp), 
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${community.memberCount} members", 
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "•", 
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = community.city, 
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            
+            if (!isMember) {
+                Surface(
+                    onClick = onRequestToJoinClick,
+                    enabled = !isPending,
+                    shape = CircleShape,
+                    color = if (isPending) MaterialTheme.colorScheme.surfaceVariant 
+                            else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (isPending) Icons.Default.HourglassBottom else Icons.Default.Add,
+                            contentDescription = "Join",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (isPending) MaterialTheme.colorScheme.onSurfaceVariant 
+                                   else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             } else {
-                Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
+                Icon(
+                    imageVector = Icons.Default.ChevronRight, 
+                    contentDescription = null, 
+                    modifier = Modifier.size(20.dp), 
+                    tint = MaterialTheme.colorScheme.outlineVariant
+                )
             }
         }
     }

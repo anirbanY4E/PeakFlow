@@ -89,7 +89,7 @@ class SupabaseApiService(
         val category: String,
         val city: String,
         val member_count: Int = 0,
-        val created_by: String,
+        val created_by: String = "",
         val image_url: String? = null,
         val cover_url: String? = null,
         val rules: List<String> = emptyList(),
@@ -562,11 +562,11 @@ class SupabaseApiService(
             code = ic["code"]?.jsonPrimitive?.content ?: "",
             communityId = ic["communityId"]?.jsonPrimitive?.content ?: "",
             createdBy = ic["createdBy"]?.jsonPrimitive?.content ?: "",
-            maxUses = ic["maxUses"]?.jsonPrimitive?.int,
-            currentUses = ic["currentUses"]?.jsonPrimitive?.int ?: 0,
-            expiresAt = null,
-            isActive = true,
-            createdAt = 0L
+            maxUses = ic["maxUses"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.content?.toIntOrNull(),
+            currentUses = ic["currentUses"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            expiresAt = ic["expiresAt"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.content?.let { parseTimestampStatic(it) },
+            isActive = ic["isActive"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true,
+            createdAt = ic["createdAt"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.content?.let { parseTimestampStatic(it) } ?: 0L
         )
     }
 

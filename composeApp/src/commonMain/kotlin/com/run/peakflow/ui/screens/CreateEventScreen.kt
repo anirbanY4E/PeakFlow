@@ -1,17 +1,23 @@
 package com.run.peakflow.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.presentation.components.CreateEventComponent
 import com.run.peakflow.ui.theme.PeakFlowSpacing
@@ -24,14 +30,16 @@ fun CreateEventScreen(component: CreateEventComponent) {
     var categoryExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("New Event", style = PeakFlowTypography.bodyTitle()) },
+                title = { Text("Create Event", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
                 navigationIcon = {
                     IconButton(onClick = { component.onBackClick() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { padding ->
@@ -39,13 +47,13 @@ fun CreateEventScreen(component: CreateEventComponent) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = PeakFlowSpacing.screenHorizontal)
+                .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(PeakFlowSpacing.elementGap)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Text("Event Details", style = PeakFlowTypography.sectionHeader())
+            SectionHeader(title = "BASIC INFORMATION")
 
             OutlinedTextField(
                 value = state.title,
@@ -54,7 +62,11 @@ fun CreateEventScreen(component: CreateEventComponent) {
                 placeholder = { Text("e.g. Morning 5K Run") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                )
             )
 
             ExposedDropdownMenuBox(
@@ -69,32 +81,46 @@ fun CreateEventScreen(component: CreateEventComponent) {
                     label = { Text("Category") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
                 )
-                ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                ExposedDropdownMenu(
+                    expanded = categoryExpanded, 
+                    onDismissRequest = { categoryExpanded = false },
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                ) {
                     EventCategory.entries.forEach { category ->
                         DropdownMenuItem(
-                            text = { Text("${category.emoji} ${category.displayName}") },
+                            text = { Text("${category.emoji} ${category.displayName}", style = MaterialTheme.typography.bodyLarge) },
                             onClick = { component.onCategoryChanged(category); categoryExpanded = false }
                         )
                     }
                 }
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(PeakFlowSpacing.elementGap)) {
+            SectionHeader(title = "DATE & LOCATION")
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = state.date,
                     onValueChange = { component.onDateChanged(it) },
                     label = { Text("Date") },
+                    placeholder = { Text("DD/MM/YYYY") },
                     modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium
+                    shape = RoundedCornerShape(16.dp),
+                    leadingIcon = { Icon(Icons.Default.CalendarToday, null, modifier = Modifier.size(18.dp)) }
                 )
                 OutlinedTextField(
                     value = state.time,
                     onValueChange = { component.onTimeChanged(it) },
                     label = { Text("Time") },
+                    placeholder = { Text("06:00 AM") },
                     modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium
+                    shape = RoundedCornerShape(16.dp),
+                    leadingIcon = { Icon(Icons.Default.Schedule, null, modifier = Modifier.size(18.dp)) }
                 )
             }
 
@@ -102,41 +128,54 @@ fun CreateEventScreen(component: CreateEventComponent) {
                 value = state.location,
                 onValueChange = { component.onLocationChanged(it) },
                 label = { Text("Location") },
+                placeholder = { Text("Meetup point address") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(16.dp),
+                leadingIcon = { Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(18.dp)) }
             )
 
             OutlinedTextField(
                 value = state.description,
                 onValueChange = { component.onDescriptionChanged(it) },
                 label = { Text("Description") },
+                placeholder = { Text("What should participants expect?") },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                shape = MaterialTheme.shapes.medium
+                minLines = 4,
+                shape = RoundedCornerShape(16.dp)
             )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            Text("Attendance & Pricing", style = PeakFlowTypography.sectionHeader())
+            SectionHeader(title = "CAPACITY & PRICING")
 
             OutlinedTextField(
-                value = state.maxParticipants.toString(),
+                value = if (state.maxParticipants == 0) "" else state.maxParticipants.toString(),
                 onValueChange = { it.toIntOrNull()?.let { max -> component.onMaxParticipantsChanged(max) } },
                 label = { Text("Max Participants") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(16.dp),
+                leadingIcon = { Icon(Icons.Default.Group, null, modifier = Modifier.size(18.dp)) }
             )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = state.isFree, onClick = { component.onIsFreeChanged(true) })
-                    Text("Free Event", style = PeakFlowTypography.bodyMain())
-                }
-                Spacer(modifier = Modifier.width(24.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = !state.isFree, onClick = { component.onIsFreeChanged(false) })
-                    Text("Paid", style = PeakFlowTypography.bodyMain())
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = state.isFree, onClick = { component.onIsFreeChanged(true) })
+                        Text("Free", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    VerticalDivider(modifier = Modifier.height(24.dp).padding(horizontal = 8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = !state.isFree, onClick = { component.onIsFreeChanged(false) })
+                        Text("Paid", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
 
@@ -147,25 +186,52 @@ fun CreateEventScreen(component: CreateEventComponent) {
                     label = { Text("Price (INR)") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.medium
+                    shape = RoundedCornerShape(16.dp),
+                    leadingIcon = { Icon(Icons.Default.Payments, null, modifier = Modifier.size(18.dp)) }
                 )
             }
 
             if (state.error != null) {
-                Text(text = state.error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = state.error!!, 
+                        color = MaterialTheme.colorScheme.error, 
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
 
             Button(
                 onClick = { component.onCreateClick() },
                 enabled = !state.isLoading,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
             ) {
-                if (state.isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                else Text("CREATE EVENT")
+                if (state.isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                else Text("PUBLISH EVENT", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
 
-            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.Black,
+            letterSpacing = 1.2.sp,
+            color = MaterialTheme.colorScheme.primary
+        ),
+        modifier = Modifier.padding(top = 12.dp)
+    )
 }

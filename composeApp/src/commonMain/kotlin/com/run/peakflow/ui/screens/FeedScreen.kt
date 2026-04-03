@@ -1,5 +1,6 @@
 package com.run.peakflow.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,9 +24,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.Post
 import com.run.peakflow.presentation.components.FeedComponent
 import com.run.peakflow.ui.components.AvatarImage
@@ -54,7 +57,6 @@ fun FeedScreen(
                     onRefresh = { component.onRefresh() },
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    // UI-layer dedup: ultimate defense against duplicate key crash
                     val uniquePosts = remember(state.posts) { state.posts.distinctBy { it.id } }
                     val listState = rememberLazyListState()
 
@@ -69,12 +71,19 @@ fun FeedScreen(
                             }
                     }
 
-                    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(bottom = 80.dp) // Space for potential FAB
+                    ) {
                         item {
                             Text(
                                 text = "Your Feed",
                                 style = PeakFlowTypography.screenTitle(),
-                                modifier = Modifier.padding(horizontal = PeakFlowSpacing.screenHorizontal, vertical = PeakFlowSpacing.sectionGap)
+                                modifier = Modifier.padding(
+                                    horizontal = PeakFlowSpacing.screenHorizontal,
+                                    vertical = PeakFlowSpacing.sectionGap
+                                )
                             )
                         }
 
@@ -85,12 +94,9 @@ fun FeedScreen(
                                 onPostClick = { component.onPostClick(post.id) },
                                 onLikeClick = { component.onLikeClick(post.id) }
                             )
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = PeakFlowSpacing.screenHorizontal),
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
+                        
                         if (state.isLoadingMore) {
                             item {
                                 Box(
@@ -110,55 +116,126 @@ fun FeedScreen(
 
 @Composable
 fun PostCard(post: Post, isLiked: Boolean, onPostClick: () -> Unit, onLikeClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onPostClick() },
-        color = MaterialTheme.colorScheme.surface
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = PeakFlowSpacing.screenHorizontal)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable { onPostClick() },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        Column(modifier = Modifier.padding(PeakFlowSpacing.screenHorizontal)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AvatarImage(
                     imageUrl = post.authorAvatarUrl,
-                    size = 40.dp,
+                    size = 44.dp,
                     contentDescription = "${post.authorName}'s avatar"
                 )
-                Spacer(modifier = Modifier.width(PeakFlowSpacing.elementGap))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(post.authorName, style = PeakFlowTypography.bodyTitle())
-                    Text(post.communityName ?: "Community Post", style = PeakFlowTypography.labelSecondary(), color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = post.authorName,
+                        style = PeakFlowTypography.bodyTitle().copy(fontSize = 15.sp)
+                    )
+                    Text(
+                        text = post.communityName ?: "PeakFlow Member",
+                        style = PeakFlowTypography.labelSecondary(),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
-            Text(post.content, style = PeakFlowTypography.bodyMain(), maxLines = 5, overflow = TextOverflow.Ellipsis)
             
-            // Display post image if available
+            Spacer(modifier = Modifier.height(14.dp))
+            
+            // Content
+            Text(
+                text = post.content,
+                style = PeakFlowTypography.bodyMain().copy(
+                    lineHeight = 22.sp,
+                    letterSpacing = 0.2.sp
+                ),
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis
+            )
+            
             if (post.imageUrl != null) {
-                Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
+                Spacer(modifier = Modifier.height(12.dp))
                 coil3.compose.AsyncImage(
                     model = post.imageUrl,
                     contentDescription = "Post image",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(MaterialTheme.shapes.medium),
+                        .heightIn(min = 180.dp, max = 300.dp)
+                        .clip(RoundedCornerShape(16.dp)),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             }
             
-            Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {
-                    Icon(
-                        imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = null,
-                        tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = onLikeClick,
+                    shape = CircleShape,
+                    color = if (isLiked) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f) 
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${post.likesCount}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("${post.likesCount}", style = PeakFlowTypography.labelSecondary())
-                Spacer(modifier = Modifier.width(24.dp))
-                Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("${post.commentsCount}", style = PeakFlowTypography.labelSecondary())
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Surface(
+                    onClick = onPostClick,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChatBubbleOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${post.commentsCount}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }

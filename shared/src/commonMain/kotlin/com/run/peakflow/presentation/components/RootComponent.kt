@@ -55,7 +55,9 @@ class RootComponent(
                         navigation.pop()
                         navigation.pushNew(Config.SignIn)
                     },
-                    onNavigateToInviteCode = { navigation.replaceAll(Config.InviteCode) }
+                    onNavigateToInviteCode = { navigation.replaceAll(Config.InviteCode) },
+                    onNavigateToMain = { navigation.replaceAll(Config.Main) },
+                    onNavigateToProfileSetup = { navigation.replaceAll(Config.ProfileSetup) }
                 )
             )
             is Config.SignIn -> Child.SignIn(

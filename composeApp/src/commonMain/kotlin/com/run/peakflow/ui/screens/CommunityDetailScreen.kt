@@ -1,6 +1,9 @@
 package com.run.peakflow.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,14 +12,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,8 +36,8 @@ import com.run.peakflow.presentation.components.CommunityDetailComponent
 import com.run.peakflow.presentation.state.CommunityTab
 import com.run.peakflow.presentation.state.MemberWithUser
 import com.run.peakflow.ui.components.AvatarImage
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
+import com.run.peakflow.ui.theme.PeakFlowSpacing
+import com.run.peakflow.ui.theme.PeakFlowTypography
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,20 +45,21 @@ fun CommunityDetailScreen(component: CommunityDetailComponent) {
     val state by component.state.collectAsState()
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(
                             text = state.community?.title ?: "Community",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         if (state.community != null) {
                             Text(
-                                text = "${state.community!!.memberCount} members",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "${state.community!!.memberCount} members • ${state.community!!.city}",
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -65,16 +76,16 @@ fun CommunityDetailScreen(component: CommunityDetailComponent) {
                 actions = {
                     if (state.userRole == MembershipRole.ADMIN) {
                         IconButton(onClick = { component.onJoinRequestsClick() }) {
-                            Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Requests")
+                            Icon(imageVector = Icons.Default.GroupAdd, contentDescription = "Requests")
                         }
                     }
                     IconButton(onClick = { component.onGenerateInviteClick() }) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Invite")
+                        Icon(imageVector = Icons.Default.IosShare, contentDescription = "Invite", modifier = Modifier.size(20.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
@@ -90,30 +101,41 @@ fun CommunityDetailScreen(component: CommunityDetailComponent) {
         when {
             state.isLoading && state.community == null -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(strokeWidth = 3.dp)
                 }
             }
             state.community != null -> {
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    // Compact Header instead of big block
-                    CompactCommunityInfo(description = state.community!!.description)
-
-                    // Tabs (Reduced height)
-                    TabRow(
+                    // Modern Tab Bar
+                    ScrollableTabRow(
                         selectedTabIndex = state.selectedTab.ordinal,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        divider = { HorizontalDivider(thickness = 0.5.dp) }
+                        containerColor = Color.Transparent,
+                        divider = {},
+                        edgePadding = 20.dp,
+                        indicator = { tabPositions ->
+                            if (state.selectedTab.ordinal < tabPositions.size) {
+                                TabRowDefaults.SecondaryIndicator(
+                                    Modifier.tabIndicatorOffset(tabPositions[state.selectedTab.ordinal]),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    height = 3.dp
+                                )
+                            }
+                        }
                     ) {
                         CommunityTab.entries.forEach { tab ->
+                            val selected = state.selectedTab == tab
                             Tab(
-                                selected = state.selectedTab == tab,
+                                selected = selected,
                                 onClick = { component.onTabSelected(tab) },
                                 text = { 
                                     Text(
                                         text = tab.name.lowercase().replaceFirstChar { it.uppercase() },
-                                        style = MaterialTheme.typography.labelLarge
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                     ) 
-                                }
+                                },
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -150,23 +172,6 @@ fun CommunityDetailScreen(component: CommunityDetailComponent) {
 }
 
 @Composable
-private fun CompactCommunityInfo(description: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-    }
-}
-
-@Composable
 private fun PostsTabContent(
     posts: List<Post>,
     likedPostIds: Set<String>,
@@ -176,11 +181,14 @@ private fun PostsTabContent(
     onPostClick: (String) -> Unit,
     onLikeClick: (String) -> Unit
 ) {
-    // UI-layer dedup: ultimate defense against duplicate key crash from concurrent state updates
     val uniquePosts = remember(posts) { posts.distinctBy { it.id } }
     if (uniquePosts.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No posts yet", style = MaterialTheme.typography.bodyMedium)
+        Box(modifier = Modifier.fillMaxSize().padding(40.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.DynamicFeed, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("No posts yet in this community", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     } else {
         val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -199,10 +207,11 @@ private fun PostsTabContent(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 8.dp)
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(uniquePosts, key = { it.id }) { post ->
-                CommunityPostCard(
+                PostCard(
                     post = post,
                     isLiked = post.id in likedPostIds,
                     onPostClick = { onPostClick(post.id) },
@@ -211,75 +220,11 @@ private fun PostsTabContent(
             }
             if (isPostsLoadingMore) {
                 item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun CommunityPostCard(
-    post: Post,
-    isLiked: Boolean,
-    onPostClick: () -> Unit,
-    onLikeClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onPostClick() },
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AvatarImage(
-                    imageUrl = post.authorAvatarUrl,
-                    size = 32.dp,
-                    contentDescription = "${post.authorName}'s avatar"
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(post.authorName, style = MaterialTheme.typography.titleSmall)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(post.content, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
-            
-            // Display post image if available
-            if (post.imageUrl != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                coil3.compose.AsyncImage(
-                    model = post.imageUrl,
-                    contentDescription = "Post image",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = null,
-                    tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp).clickable { onLikeClick() }
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("${post.likesCount}", style = MaterialTheme.typography.bodySmall)
-                Spacer(modifier = Modifier.width(16.dp))
-                Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("${post.commentsCount}", style = MaterialTheme.typography.bodySmall)
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -292,93 +237,127 @@ private fun EventsTabContent(
     onRsvpClick: (String) -> Unit
 ) {
     val uniqueEvents = remember(events) { events.distinctBy { it.id } }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(uniqueEvents, key = { it.id }) { event ->
-            EventCard(
-                event = event,
-                isRsvped = event.id in rsvpedEventIds,
-                onEventClick = { onEventClick(event.id) },
-                onRsvpClick = { onRsvpClick(event.id) }
-            )
+    if (uniqueEvents.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize().padding(40.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.AutoMirrored.Filled.EventNote, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("No upcoming events", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(), 
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp), 
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(uniqueEvents, key = { it.id }) { event ->
+                EventCard(
+                    event = event,
+                    isRsvped = event.id in rsvpedEventIds,
+                    onEventClick = { onEventClick(event.id) },
+                    onRsvpClick = { onRsvpClick(event.id) }
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun MembersTabContent(members: List<MemberWithUser>) {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(), 
+        contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
+    ) {
         items(members, key = { it.membership.id }) { memberWithUser ->
-            MemberItem(memberWithUser = memberWithUser)
+            MemberItemModern(memberWithUser = memberWithUser)
         }
     }
 }
 
 @Composable
-private fun MemberItem(memberWithUser: MemberWithUser) {
-    val membership = memberWithUser.membership
+private fun MemberItemModern(memberWithUser: MemberWithUser) {
     val user = memberWithUser.user
-    // Format the timestamp to a readable date string
-    val joinedDate = remember(membership.joinedAt) {
-        formatTimestampToDate(membership.joinedAt)
-    }
     val displayName = user?.name?.takeIf { it.isNotBlank() } ?: user?.email ?: "Member"
     
     ListItem(
-        headlineContent = { Text(displayName, style = MaterialTheme.typography.bodyMedium) },
-        supportingContent = { Text("Joined $joinedDate", style = MaterialTheme.typography.bodySmall) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { 
+            Text(displayName, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)) 
+        },
+        supportingContent = { 
+            Text(user?.city ?: "PeakFlow Member", style = MaterialTheme.typography.bodySmall) 
+        },
         leadingContent = {
             AvatarImage(
                 imageUrl = user?.avatarUrl,
-                size = 36.dp,
+                size = 44.dp,
                 contentDescription = "$displayName avatar"
             )
         },
         trailingContent = {
-            if (membership.role == MembershipRole.ADMIN) {
-                SuggestionChip(onClick = {}, label = { Text("Admin") })
+            if (memberWithUser.membership.role == MembershipRole.ADMIN) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = "Admin", 
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     )
 }
 
-/**
- * Formats a timestamp (milliseconds since epoch) to a readable relative date string
- */
-@OptIn(ExperimentalTime::class)
-private fun formatTimestampToDate(timestamp: Long): String {
-    return if (timestamp > 0) {
-        val now = Clock.System.now().toEpochMilliseconds()
-        val diffMs = now - timestamp
-        val diffSeconds = diffMs / 1000
-        val diffDays = diffSeconds / 86400
-        val diffYears = diffDays / 365
-        val diffMonths = (diffDays % 365) / 30
-        val diffWeeks = diffDays / 7
-        
-        when {
-            diffYears > 0 -> "$diffYears year${if (diffYears > 1) "s" else ""} ago"
-            diffMonths > 0 -> "$diffMonths month${if (diffMonths > 1) "s" else ""} ago"
-            diffWeeks > 0 -> "$diffWeeks week${if (diffWeeks > 1) "s" else ""} ago"
-            diffDays > 0 -> "$diffDays day${if (diffDays > 1) "s" else ""} ago"
-            else -> "Recently"
-        }
-    } else {
-        "Recently"
-    }
-}
-
 @Composable
 private fun AboutTabContent(community: com.run.peakflow.data.models.CommunityGroup) {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(), 
+        contentPadding = PaddingValues(24.dp), 
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
         item {
-            Text("About", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            Text(community.description, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "Community Goal", 
+                style = MaterialTheme.typography.titleMedium, 
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = community.description, 
+                style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
         }
+        
         if (community.rules.isNotEmpty()) {
             item {
-                Text("Rules", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = "Guidelines", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
                 community.rules.forEachIndexed { i, rule ->
-                    Text("${i + 1}. $rule", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp))
+                    Row(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Text(
+                            text = "${i + 1}.", 
+                            style = MaterialTheme.typography.bodyMedium, 
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = rule, 
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -388,20 +367,42 @@ private fun AboutTabContent(community: com.run.peakflow.data.models.CommunityGro
 @Composable
 private fun AdminActionsFab(onCreateEventClick: () -> Unit, onCreatePostClick: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    
+    val rotation by animateFloatAsState(if (expanded) 45f else 0f)
+    
     Column(horizontalAlignment = Alignment.End) {
         AnimatedVisibility(visible = expanded) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SmallFloatingActionButton(onClick = { expanded = false; onCreatePostClick() }) {
-                    Icon(Icons.Default.Edit, "Post")
-                }
-                SmallFloatingActionButton(onClick = { expanded = false; onCreateEventClick() }) {
-                    Icon(Icons.Default.Event, "Event")
-                }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ExtendedFloatingActionButton(
+                    onClick = { expanded = false; onCreatePostClick() },
+                    icon = { Icon(Icons.Default.Edit, "Post") },
+                    text = { Text("Create Post") },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(16.dp)
+                )
+                ExtendedFloatingActionButton(
+                    onClick = { expanded = false; onCreateEventClick() },
+                    icon = { Icon(Icons.Default.Event, "Event") },
+                    text = { Text("Create Event") },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(16.dp)
+                )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        FloatingActionButton(onClick = { expanded = !expanded }) {
-            Icon(if (expanded) Icons.Default.Close else Icons.Default.Add, null)
+        Spacer(modifier = Modifier.height(16.dp))
+        FloatingActionButton(
+            onClick = { expanded = !expanded },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add, 
+                contentDescription = null,
+                modifier = Modifier.rotate(rotation)
+            )
         }
     }
 }

@@ -1,21 +1,27 @@
 package com.run.peakflow.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Timelapse
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.InviteCode
@@ -29,23 +35,24 @@ fun GenerateInviteScreen(component: GenerateInviteComponent) {
     val state by component.state.collectAsState()
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Invite Members", style = PeakFlowTypography.bodyTitle()) },
+                title = { Text("Invite Members", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
                 navigationIcon = {
                     IconButton(onClick = { component.onBackClick() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = PeakFlowSpacing.screenHorizontal),
-            verticalArrangement = Arrangement.spacedBy(PeakFlowSpacing.sectionGap)
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-
             if (state.generatedCode != null) {
                 item {
                     GeneratedCodeCard(
@@ -58,28 +65,56 @@ fun GenerateInviteScreen(component: GenerateInviteComponent) {
 
             item {
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    shape = MaterialTheme.shapes.medium
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(24.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
-                    Column(modifier = Modifier.padding(PeakFlowSpacing.cardPadding)) {
-                        Text("Generate New Code", style = PeakFlowTypography.sectionHeader())
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Expires in ${state.expiresInDays} days", style = PeakFlowTypography.bodyMain())
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Timelapse, 
+                                null, 
+                                modifier = Modifier.size(20.dp), 
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                "Code Duration", 
+                                style = MaterialTheme.typography.titleSmall, 
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        Text(
+                            text = "Expires in ${state.expiresInDays} days", 
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
                         Slider(
                             value = state.expiresInDays.toFloat(),
                             onValueChange = { component.onExpiryDaysChanged(it.toInt()) },
                             valueRange = 1f..30f,
-                            steps = 28
+                            steps = 28,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
                         Button(
                             onClick = { component.onGenerateClick() },
                             enabled = !state.isGenerating,
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = MaterialTheme.shapes.medium
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            if (state.isGenerating) CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                            else Text("GENERATE")
+                            if (state.isGenerating) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                            else Text("GENERATE NEW CODE", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         }
                     }
                 }
@@ -87,14 +122,21 @@ fun GenerateInviteScreen(component: GenerateInviteComponent) {
 
             if (state.existingCodes.isNotEmpty()) {
                 item {
-                    Text("ACTIVE CODES", style = PeakFlowTypography.sectionHeader())
+                    Text(
+                        text = "ACTIVE INVITES", 
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.2.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
                 }
+                
                 items(state.existingCodes, key = { it.id }) { invite ->
-                    ExistingCodeCard(invite = invite)
+                    ExistingCodeCardModern(invite = invite)
                 }
             }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 }
@@ -102,31 +144,51 @@ fun GenerateInviteScreen(component: GenerateInviteComponent) {
 @Composable
 private fun GeneratedCodeCard(code: InviteCode, isCopied: Boolean, onCopyClick: () -> Unit) {
     Surface(
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+        shape = RoundedCornerShape(24.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Invite Code", style = PeakFlowTypography.labelSecondary())
-            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "INVITE CODE READY", 
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = code.code,
-                style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Monospace, letterSpacing = 2.sp),
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontFamily = FontFamily.Monospace, 
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Black
+                ),
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(24.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onCopyClick, shape = RoundedCornerShape(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onCopyClick, 
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f).height(48.dp)
+                ) {
                     Icon(if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (isCopied) "COPIED" else "COPY")
                 }
-                OutlinedButton(onClick = {}, shape = RoundedCornerShape(8.dp)) {
+                OutlinedButton(
+                    onClick = {}, 
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
-                    Text("SHARE", modifier = Modifier.padding(start = 8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("SHARE")
                 }
             }
         }
@@ -134,28 +196,47 @@ private fun GeneratedCodeCard(code: InviteCode, isCopied: Boolean, onCopyClick: 
 }
 
 @Composable
-private fun ExistingCodeCard(invite: InviteCode) {
-    Card(
+private fun ExistingCodeCardModern(invite: InviteCode) {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = CardDefaults.outlinedCardBorder()
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
-        ListItem(
-            headlineContent = { Text(invite.code, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)) },
-            supportingContent = { Text("Used ${invite.currentUses} times", style = PeakFlowTypography.labelSecondary()) },
-            trailingContent = {
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = if (invite.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
-                ) {
-                    Text(
-                        if (invite.isActive) "Active" else "Expired",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = invite.code, 
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
                     )
-                }
+                )
+                Text(
+                    text = "Used ${invite.currentUses} times", 
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        )
+            
+            Surface(
+                shape = CircleShape,
+                color = if (invite.isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
+                        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+            ) {
+                Text(
+                    text = if (invite.isActive) "Active" else "Expired",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (invite.isActive) MaterialTheme.colorScheme.primary 
+                            else MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }

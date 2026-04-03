@@ -1,11 +1,14 @@
 package com.run.peakflow.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,9 +19,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.Event
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.presentation.components.EventsListComponent
@@ -33,7 +40,7 @@ fun EventsListScreen(
 ) {
     val state by component.state.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Text(
             text = "Explore Events",
             style = PeakFlowTypography.screenTitle(),
@@ -41,24 +48,44 @@ fun EventsListScreen(
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = PeakFlowSpacing.screenHorizontal),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = PeakFlowSpacing.screenHorizontal),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             FilterChip(
                 selected = state.selectedCategory == null,
                 onClick = { component.onCategorySelected(null) },
-                label = { Text("All", style = MaterialTheme.typography.labelMedium) }
+                label = { Text("All", style = MaterialTheme.typography.labelLarge) },
+                shape = CircleShape,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                border = null
             )
             EventCategory.entries.forEach { category ->
                 FilterChip(
                     selected = state.selectedCategory == category,
                     onClick = { component.onCategorySelected(category) },
-                    label = { Text("${category.emoji} ${category.displayName}", style = MaterialTheme.typography.labelMedium) }
+                    label = { 
+                        Text(
+                            text = "${category.emoji} ${category.displayName}", 
+                            style = MaterialTheme.typography.labelLarge
+                        ) 
+                    },
+                    shape = CircleShape,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    border = null
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
+        Spacer(modifier = Modifier.height(16.dp))
 
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
@@ -66,8 +93,13 @@ fun EventsListScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = PeakFlowSpacing.screenHorizontal),
-                verticalArrangement = Arrangement.spacedBy(PeakFlowSpacing.elementGap)
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = PeakFlowSpacing.screenHorizontal,
+                    end = PeakFlowSpacing.screenHorizontal,
+                    bottom = 32.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(state.events, key = { it.id }) { event ->
                     EventCard(
@@ -77,7 +109,6 @@ fun EventsListScreen(
                         onRsvpClick = { component.onRsvpClick(event.id) }
                     )
                 }
-                item { Spacer(modifier = Modifier.height(PeakFlowSpacing.sectionGap)) }
             }
         }
     }
@@ -86,36 +117,118 @@ fun EventsListScreen(
 @Composable
 fun EventCard(event: Event, isRsvped: Boolean, onEventClick: () -> Unit, onRsvpClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onEventClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .clickable { onEventClick() },
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-        border = CardDefaults.outlinedCardBorder()
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        Column(modifier = Modifier.padding(PeakFlowSpacing.cardPadding)) {
-            Text(event.category.displayName.uppercase(), style = PeakFlowTypography.labelSecondary(), color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(event.title, style = PeakFlowTypography.bodyTitle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            
-            Spacer(modifier = Modifier.height(PeakFlowSpacing.elementGap))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Schedule, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("${event.date} • ${event.time}", style = PeakFlowTypography.labelSecondary())
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = event.category.displayName.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Groups, 
+                        null, 
+                        modifier = Modifier.size(16.dp), 
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${event.currentParticipants}/${event.maxParticipants}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                text = event.title,
+                style = PeakFlowTypography.bodyTitle().copy(fontSize = 18.sp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(event.location, style = PeakFlowTypography.labelSecondary(), maxLines = 1)
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${event.date} • ${event.time}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = event.location,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            Spacer(modifier = Modifier.height(PeakFlowSpacing.cardPadding))
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            val isFull = event.currentParticipants >= event.maxParticipants && !isRsvped
+            
             Button(
                 onClick = onRsvpClick,
-                enabled = !isRsvped && event.currentParticipants < event.maxParticipants,
-                modifier = Modifier.fillMaxWidth().height(40.dp),
-                shape = RoundedCornerShape(8.dp)
+                enabled = !isRsvped && !isFull,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isRsvped) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                    disabledContainerColor = if (isFull) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                )
             ) {
-                Text(if (isRsvped) "RSVP'd" else "Reserve Spot", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = when {
+                        isRsvped -> "RSVP'd ✓"
+                        isFull -> "Event Full"
+                        else -> "Reserve Spot"
+                    },
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                )
             }
         }
     }
