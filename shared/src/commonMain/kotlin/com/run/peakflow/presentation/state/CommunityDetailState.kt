@@ -29,6 +29,7 @@ data class CommunityDetailState(
     val rsvpedEventIds: Set<String> = emptySet()
 )
 
+@kotlinx.serialization.Serializable
 enum class CommunityTab {
     POSTS,
     EVENTS,

@@ -8,6 +8,14 @@ import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.pushNew
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.value.Value
+import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.presentation.navigation.DeepLinkNavigator
+import com.run.peakflow.presentation.state.CommunityTab
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -17,6 +25,7 @@ class RootComponent(
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val navigation = StackNavigation<Config>()
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
@@ -25,6 +34,29 @@ class RootComponent(
         handleBackButton = true,
         childFactory = ::createChild
     )
+
+    init {
+        lifecycle.doOnDestroy { scope.cancel() }
+        observeDeepLinks()
+    }
+
+    private fun observeDeepLinks() {
+        scope.launch {
+            DeepLinkNavigator.events.collect { deepLink ->
+                when (deepLink) {
+                    is DeepLinkNavigator.DeepLink.CommunityPost -> {
+                        // Push CommunityDetail with Posts tab pre-selected
+                        navigation.pushNew(
+                            Config.CommunityDetail(
+                                communityId = deepLink.communityId,
+                                initialTab = CommunityTab.POSTS
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     private fun createChild(config: Config, componentContext: ComponentContext): Child {
         return when (config) {
@@ -115,6 +147,7 @@ class RootComponent(
                 CommunityDetailComponent(
                     componentContext = componentContext,
                     communityId = config.communityId,
+                    initialTab = config.initialTab,
                     onNavigateBack = { navigation.pop() },
                     onNavigateToEventDetail = { eventId ->
                         navigation.pushNew(Config.EventDetail(eventId))
@@ -223,7 +256,10 @@ class RootComponent(
         data object Main : Config()
 
         @Serializable
-        data class CommunityDetail(val communityId: String) : Config()
+        data class CommunityDetail(
+            val communityId: String,
+            val initialTab: CommunityTab = CommunityTab.POSTS
+        ) : Config()
 
         @Serializable
         data class EventDetail(val eventId: String) : Config()

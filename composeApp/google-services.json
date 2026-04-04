@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "878219945232",
+    "project_id": "peakflow-490011",
+    "storage_bucket": "peakflow-490011.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:878219945232:android:8fbcf762f90df331fcf195",
+        "android_client_info": {
+          "package_name": "com.run.peakflow"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "878219945232-vavln7088r6csdikj4f930mg38bsf9bm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCh8UJ32QH9BpvMJ5MZxmGy2n-J_9ilYJk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "878219945232-vavln7088r6csdikj4f930mg38bsf9bm.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "878219945232-48g3tujpu52a3e9ddr0ncqfkv3rtmjtf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.run.peakflow.peakflow"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

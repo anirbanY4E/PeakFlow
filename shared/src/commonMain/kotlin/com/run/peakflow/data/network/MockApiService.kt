@@ -1261,4 +1261,10 @@ class MockApiService : ApiService {
     override fun observeJoinRequests(communityId: String): Flow<JoinRequest> {
         return emptyFlow()
     }
+
+    // ==================== PUSH NOTIFICATIONS ====================
+
+    override suspend fun syncFcmToken(token: String) {
+        // No-op in mock
+    }
 }

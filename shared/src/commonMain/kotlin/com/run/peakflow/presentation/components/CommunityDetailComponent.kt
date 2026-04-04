@@ -34,6 +34,7 @@ import org.koin.core.component.inject
 class CommunityDetailComponent(
     componentContext: ComponentContext,
     private val communityId: String,
+    private val initialTab: CommunityTab = CommunityTab.POSTS,
     private val onNavigateBack: () -> Unit,
     private val onNavigateToEventDetail: (String) -> Unit,
     private val onNavigateToPostDetail: (String) -> Unit,
@@ -55,7 +56,7 @@ class CommunityDetailComponent(
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private val _state = MutableStateFlow(CommunityDetailState())
+    private val _state = MutableStateFlow(CommunityDetailState(selectedTab = initialTab))
     val state: StateFlow<CommunityDetailState> = _state.asStateFlow()
 
     // Track post IDs with in-flight like operations to avoid reload conflicts

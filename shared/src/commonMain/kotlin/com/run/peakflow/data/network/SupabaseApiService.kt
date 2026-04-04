@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -59,6 +60,55 @@ import kotlinx.serialization.json.put
 class SupabaseApiService(
     private val client: SupabaseClient
 ) : ApiService {
+
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+    init {
+        try {
+            com.mmk.kmpnotifier.notification.NotifierManager.addListener(object : com.mmk.kmpnotifier.notification.NotifierManager.Listener {
+                override fun onNewToken(token: String) {
+                    println("FCM Token updated: $token")
+                    scope.launch {
+                        syncFcmToken(token)
+                    }
+                }
+
+                override fun onPushNotification(title: String?, body: String?) {
+                    println("Push notification received: title=$title, body=$body")
+                }
+
+                override fun onNotificationClicked(data: com.mmk.kmpnotifier.notification.PayloadData) {
+                    super.onNotificationClicked(data)
+                    println("Notification clicked, payload: $data")
+                    val communityId = data["community_id"] as? String
+                    if (communityId != null) {
+                        com.run.peakflow.presentation.navigation.DeepLinkNavigator.navigate(
+                            com.run.peakflow.presentation.navigation.DeepLinkNavigator.DeepLink.CommunityPost(
+                                communityId = communityId,
+                                postId = data["post_id"] as? String
+                            )
+                        )
+                    }
+                }
+            })
+
+            // Sync token on authentication
+            scope.launch {
+                client.auth.sessionStatus.collect { status ->
+                    if (status is SessionStatus.Authenticated) {
+                        try {
+                            val token = com.mmk.kmpnotifier.notification.NotifierManager.getPushNotifier().getToken()
+                            if (token != null) syncFcmToken(token)
+                        } catch (e: Exception) {
+                            println("Failed to fetch current FCM token: ${e.message}")
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("Failed to initialize push notifications: ${e.message}")
+        }
+    }
 
     // ==================== Internal DTOs for Supabase row mapping ====================
 
@@ -502,6 +552,21 @@ class SupabaseApiService(
                 filter { eq("id", userId) }
             }
         return getUser(userId) ?: throw Exception("User not found")
+    }
+
+    override suspend fun syncFcmToken(token: String) {
+        val userId = getSessionUserId() ?: return
+        try {
+            client.postgrest.from("profiles").update(
+                {
+                    set("fcm_token", token)
+                }
+            ) {
+                filter { eq("id", userId) }
+            }
+        } catch (e: Exception) {
+            println("Failed to sync FCM token: ${e.message}")
+        }
     }
 
     // ==================== INVITE CODES ====================

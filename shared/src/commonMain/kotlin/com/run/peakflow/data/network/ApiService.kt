@@ -118,6 +118,11 @@ interface ApiService {
         avatarUrl: String?
     ): User
 
+    /**
+     * Send the FCM push token to the backend profile.
+     */
+    suspend fun syncFcmToken(token: String)
+
     // ==================== INVITE CODES ====================
 
     suspend fun validateInviteCode(code: String): InviteCode?

@@ -41,6 +41,9 @@ kotlin {
 
             // Ktor Client (core)
             implementation(libs.ktor.client.core)
+
+            // KMPNotifier
+            api(libs.kmpnotifier)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
