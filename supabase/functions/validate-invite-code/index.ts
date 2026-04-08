@@ -3,6 +3,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { checkRateLimit } from "../_shared/rate-limiter.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +26,11 @@ serve(async (req) => {
         },
       }
     )
+
+    // Rate limit by IP address for anonymous endpoints
+    const clientIp = req.headers.get("x-forwarded-for") || "unknown-ip"
+    const rateLimitResponse = await checkRateLimit('validate-invite-code', clientIp, corsHeaders);
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { code } = await req.json()
 

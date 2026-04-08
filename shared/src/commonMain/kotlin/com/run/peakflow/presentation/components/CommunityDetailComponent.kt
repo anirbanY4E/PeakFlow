@@ -3,6 +3,8 @@ package com.run.peakflow.presentation.components
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.run.peakflow.data.models.User
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.data.repository.EventRepository
 import com.run.peakflow.data.repository.MembershipRepository
 import com.run.peakflow.data.repository.PostRepository
@@ -11,6 +13,7 @@ import com.run.peakflow.domain.usecases.GetCommunityPostsUseCase
 import com.run.peakflow.domain.usecases.GetEventRsvpStatus
 import com.run.peakflow.domain.usecases.GetUserRoleInCommunityUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
+import com.run.peakflow.domain.usecases.RequestToJoinCommunityUseCase
 import com.run.peakflow.domain.usecases.RsvpToEvent
 import com.run.peakflow.presentation.state.CommunityDetailState
 import com.run.peakflow.presentation.state.CommunityTab
@@ -49,10 +52,13 @@ class CommunityDetailComponent(
     private val getUserRoleInCommunity: GetUserRoleInCommunityUseCase by inject()
     private val likePost: LikePostUseCase by inject()
     private val rsvpToEvent: RsvpToEvent by inject()
+    private val requestToJoinCommunity: RequestToJoinCommunityUseCase by inject()
     private val getEventRsvpStatus: GetEventRsvpStatus by inject()
     private val eventRepository: EventRepository by inject()
     private val membershipRepository: MembershipRepository by inject()
     private val postRepository: PostRepository by inject()
+    private val userRepository: com.run.peakflow.data.repository.UserRepository by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -79,9 +85,8 @@ class CommunityDetailComponent(
             eventRepository.eventStateChanges.collect { change ->
                 _state.update { currentState ->
                     // Update RSVP status if changed
-                    val newRsvpedIds = if (change.rsvpStatusChanged) {
-                        val isRsvped = getEventRsvpStatus(change.eventId)
-                        if (isRsvped) {
+                    val newRsvpedIds = if (change.rsvpStatusChanged && change.isRsvped != null) {
+                        if (change.isRsvped == true) {
                             currentState.rsvpedEventIds + change.eventId
                         } else {
                             currentState.rsvpedEventIds - change.eventId
@@ -202,6 +207,12 @@ class CommunityDetailComponent(
                 val eventsWithRsvpDeferred = async { eventRepository.getCommunityEventsWithRsvp(communityId) }
                 val membersDeferred = async { membershipRepository.getCommunityMembersWithProfiles(communityId) }
                 val userRoleDeferred = async { getUserRoleInCommunity(communityId) }
+                val pendingJoinRequestDeferred = async { 
+                    val userId = userRepository.getCurrentUserId()
+                    if (userId != null && userRoleDeferred.await() == null) {
+                        membershipRepository.hasUserRequestedToJoin(userId, communityId)
+                    } else false
+                }
 
                 // Await all in parallel
                 val community = communityDeferred.await()
@@ -245,10 +256,14 @@ class CommunityDetailComponent(
                         members = membersWithUsers,
                         userRole = userRole,
                         likedPostIds = likedIds,
-                        rsvpedEventIds = rsvpedIds
+                        rsvpedEventIds = rsvpedIds,
+                        hasPendingJoinRequest = pendingJoinRequestDeferred.await()
                     )
                 }
             } catch (e: Exception) {
+                if (e is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
@@ -274,6 +289,9 @@ class CommunityDetailComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isPostsLoadingMore = false, error = e.message) }
             }
         }
@@ -334,9 +352,12 @@ class CommunityDetailComponent(
                 // Like succeeded — clear pending flag.
                 // The postStateChanges observer will debounce and reload once.
                 pendingLikePostIds.remove(postId)
-            }.onFailure {
+            }.onFailure { e ->
                 // Revert optimistic update on failure
                 pendingLikePostIds.remove(postId)
+                if (e is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { state ->
                     val revertedLikedIds = if (isCurrentlyLiked) {
                         state.likedPostIds + postId
@@ -358,6 +379,7 @@ class CommunityDetailComponent(
     }
 
     fun onRsvpEventClick(eventId: String) {
+        _state.update { it.copy(rsvpingEventIds = it.rsvpingEventIds + eventId) }
         scope.launch {
             val result = rsvpToEvent(eventId)
             result.onSuccess {
@@ -368,8 +390,13 @@ class CommunityDetailComponent(
                             event.copy(currentParticipants = event.currentParticipants + 1)
                         } else event
                     }
-                    currentState.copy(events = newEvents, rsvpedEventIds = newRsvpedIds)
+                    currentState.copy(events = newEvents, rsvpedEventIds = newRsvpedIds, rsvpingEventIds = currentState.rsvpingEventIds - eventId)
                 }
+            }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
+                _state.update { it.copy(rsvpingEventIds = it.rsvpingEventIds - eventId) }
             }
         }
     }
@@ -380,6 +407,22 @@ class CommunityDetailComponent(
 
     fun onJoinRequestsClick() {
         onNavigateToJoinRequests(communityId)
+    }
+
+    fun onJoinCommunityClick() {
+        _state.update { it.copy(isJoining = true) }
+        scope.launch {
+            val result = requestToJoinCommunity(communityId)
+            result.onSuccess {
+                _state.update { it.copy(isJoining = false, hasPendingJoinRequest = true) }
+                loadCommunity()
+            }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
+                _state.update { it.copy(isJoining = false) }
+            }
+        }
     }
 
     fun onCreateEventClick() {

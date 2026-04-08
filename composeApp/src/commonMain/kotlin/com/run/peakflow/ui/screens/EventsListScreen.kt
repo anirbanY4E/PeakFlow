@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.Event
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.presentation.components.EventsListComponent
+import com.run.peakflow.ui.components.EventCardSkeleton
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
 
@@ -69,11 +70,11 @@ fun EventsListScreen(
                 FilterChip(
                     selected = state.selectedCategory == category,
                     onClick = { component.onCategorySelected(category) },
-                    label = { 
+                    label = {
                         Text(
-                            text = "${category.emoji} ${category.displayName}", 
+                            text = "${category.emoji} ${category.displayName}",
                             style = MaterialTheme.typography.labelLarge
-                        ) 
+                        )
                     },
                     shape = CircleShape,
                     colors = FilterChipDefaults.filterChipColors(
@@ -87,27 +88,47 @@ fun EventsListScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val showSkeletons = state.isLoading && state.events.isEmpty()
+
         PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
+            isRefreshing = state.isRefreshing && !showSkeletons,
             onRefresh = { component.onRefresh() },
             modifier = Modifier.fillMaxSize()
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = PeakFlowSpacing.screenHorizontal,
-                    end = PeakFlowSpacing.screenHorizontal,
-                    bottom = 32.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(state.events, key = { it.id }) { event ->
-                    EventCard(
-                        event = event,
-                        isRsvped = event.id in state.rsvpedEventIds,
-                        onEventClick = { component.onEventClick(event.id) },
-                        onRsvpClick = { component.onRsvpClick(event.id) }
-                    )
+            if (showSkeletons) {
+                // Show skeleton loaders for initial load
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = PeakFlowSpacing.screenHorizontal,
+                        end = PeakFlowSpacing.screenHorizontal,
+                        bottom = 32.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(5) {
+                        EventCardSkeleton()
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = PeakFlowSpacing.screenHorizontal,
+                        end = PeakFlowSpacing.screenHorizontal,
+                        bottom = 32.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(state.events, key = { it.id }) { event ->
+                        EventCard(
+                            event = event,
+                            isRsvped = event.id in state.rsvpedEventIds,
+                            onEventClick = { component.onEventClick(event.id) },
+                            onRsvpClick = { component.onRsvpClick(event.id) },
+                            isRsvping = event.id in state.rsvpingEventIds
+                        )
+                    }
                 }
             }
         }
@@ -115,7 +136,7 @@ fun EventsListScreen(
 }
 
 @Composable
-fun EventCard(event: Event, isRsvped: Boolean, onEventClick: () -> Unit, onRsvpClick: () -> Unit) {
+fun EventCard(event: Event, isRsvped: Boolean, onEventClick: () -> Unit, onRsvpClick: () -> Unit, canRsvp: Boolean = true, isRsvping: Boolean = false) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,9 +167,9 @@ fun EventCard(event: Event, isRsvped: Boolean, onEventClick: () -> Unit, onRsvpC
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.Groups, 
-                        null, 
-                        modifier = Modifier.size(16.dp), 
+                        Icons.Default.Groups,
+                        null,
+                        modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -211,24 +232,34 @@ fun EventCard(event: Event, isRsvped: Boolean, onEventClick: () -> Unit, onRsvpC
             
             Button(
                 onClick = onRsvpClick,
-                enabled = !isRsvped && !isFull,
+                enabled = !isRsvped && !isFull && canRsvp && !isRsvping,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isRsvped) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = if (isFull) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    disabledContainerColor = if (isRsvping) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else if (!canRsvp) MaterialTheme.colorScheme.surfaceVariant else if (isFull) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                 )
             ) {
-                Text(
-                    text = when {
-                        isRsvped -> "RSVP'd ✓"
-                        isFull -> "Event Full"
-                        else -> "Reserve Spot"
-                    },
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                )
+                if (isRsvping) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = when {
+                            !canRsvp -> "Members Only"
+                            isRsvped -> "RSVP'd ✓"
+                            isFull -> "Event Full"
+                            else -> "Reserve Spot"
+                        },
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = if (!canRsvp) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified
+                    )
+                }
             }
         }
     }

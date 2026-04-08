@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.domain.usecases.ResendOtpUseCase
 import com.run.peakflow.domain.usecases.VerifyOtpUseCase
 import com.run.peakflow.presentation.state.OtpVerificationState
@@ -28,6 +30,7 @@ class OtpVerificationComponent(
 
     private val verifyOtp: VerifyOtpUseCase by inject()
     private val resendOtp: ResendOtpUseCase by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -82,7 +85,11 @@ class OtpVerificationComponent(
                 _state.update { it.copy(isLoading = false, isSuccess = true) }
                 onNavigateToInviteCode()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message, otp = "") }
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message, otp = "") }
+                }
             }
         }
     }
@@ -99,7 +106,11 @@ class OtpVerificationComponent(
                 _state.update { it.copy(isResending = false, resendCountdown = 45) }
                 startCountdown()
             }.onFailure { error ->
-                _state.update { it.copy(isResending = false, error = error.message) }
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                } else {
+                    _state.update { it.copy(isResending = false, error = error.message) }
+                }
             }
         }
     }

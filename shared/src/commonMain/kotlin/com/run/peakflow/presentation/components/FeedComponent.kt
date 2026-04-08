@@ -15,8 +15,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -29,6 +31,7 @@ class FeedComponent(
     private val getFeedPosts: GetFeedPostsUseCase by inject()
     private val likePost: LikePostUseCase by inject()
     private val postRepository: PostRepository by inject()
+    private val authRepository: com.run.peakflow.data.repository.AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -43,8 +46,20 @@ class FeedComponent(
 
     init {
         lifecycle.doOnDestroy { scope.cancel() }
-        loadFeed()
+        observeAuthState()
         observePostStateChanges()
+    }
+
+    private fun observeAuthState() {
+        scope.launch {
+            authRepository.authState.collect { state ->
+                // If we were waiting for initialization and now we are logged in, trigger load if empty
+                if (!state.isInitializing && state.isLoggedIn && _state.value.posts.isEmpty() && !_state.value.isLoading) {
+                    println("FeedComponent: Auth settled and logged in, triggering loadFeed")
+                    loadFeed()
+                }
+            }
+        }
     }
 
     private fun observePostStateChanges() {
@@ -96,6 +111,9 @@ class FeedComponent(
                     currentState.copy(posts = mergedPosts, likedPostIds = mergedLikedIds)
                 }
             } catch (e: Exception) {
+                if (e is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 // Silently fail
             }
         }
@@ -104,7 +122,17 @@ class FeedComponent(
     fun loadFeed() {
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null, offset = 0, hasMorePosts = true) }
+            
             try {
+                // Patience: If still initializing, wait up to 3 seconds for session restoration.
+                // This handles the race condition where FeedComponent is restored before AuthRepository settles.
+                if (authRepository.authState.value.isInitializing) {
+                    println("FeedComponent: Still initializing, waiting for auth settlement...")
+                    withTimeoutOrNull(3000) {
+                        authRepository.authState.first { !it.isInitializing }
+                    }
+                }
+
                 val posts = getFeedPosts(limit = 20, offset = 0)
                 val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
                 _state.update { 
@@ -116,6 +144,9 @@ class FeedComponent(
                     ) 
                 }
             } catch (e: Exception) {
+                if (e is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load feed") }
             }
         }
@@ -141,6 +172,9 @@ class FeedComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoadingMore = false, error = e.message) }
             }
         }
@@ -161,6 +195,9 @@ class FeedComponent(
                     ) 
                 }
             } catch (e: Exception) {
+                if (e is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isRefreshing = false, error = e.message) }
             }
         }

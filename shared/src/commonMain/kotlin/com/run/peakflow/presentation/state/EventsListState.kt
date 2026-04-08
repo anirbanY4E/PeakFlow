@@ -11,5 +11,6 @@ data class EventsListState(
     val selectedCategory: EventCategory? = null,
     val searchQuery: String = "",
     val city: String = "Bangalore",
-    val rsvpedEventIds: Set<String> = emptySet()
+    val rsvpedEventIds: Set<String> = emptySet(),
+    val rsvpingEventIds: Set<String> = emptySet()
 )

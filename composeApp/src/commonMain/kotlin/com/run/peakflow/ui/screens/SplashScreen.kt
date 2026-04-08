@@ -128,6 +128,20 @@ fun SplashScreen(component: SplashComponent) {
                     color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 2.dp
                 )
+            } else if (state.errorMessage != null) {
+                Text(
+                    text = state.errorMessage!!,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Button(
+                    onClick = { component.onRetry() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Retry")
+                }
             }
         }
     }

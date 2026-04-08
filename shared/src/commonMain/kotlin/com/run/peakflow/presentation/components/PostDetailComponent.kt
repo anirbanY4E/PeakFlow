@@ -36,6 +36,7 @@ class PostDetailComponent(
     private val hasUserLikedPost: HasUserLikedPostUseCase by inject()
     private val addComment: AddCommentUseCase by inject()
     private val postRepository: PostRepository by inject()
+    private val authRepository: com.run.peakflow.data.repository.AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -75,6 +76,9 @@ class PostDetailComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
@@ -105,7 +109,10 @@ class PostDetailComponent(
                         post = newPost
                     )
                 }
-            }.onFailure {
+            }.onFailure { e ->
+                if (e is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLikeLoading = false) }
             }
         }
@@ -145,6 +152,9 @@ class PostDetailComponent(
                     }
                 }
             }.onFailure { error ->
+                if (error is com.run.peakflow.data.network.AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isCommentLoading = false, error = error.message) }
             }
         }

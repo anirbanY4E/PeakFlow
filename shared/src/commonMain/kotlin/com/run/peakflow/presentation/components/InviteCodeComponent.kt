@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.JoinCommunityViaInviteUseCase
 import com.run.peakflow.domain.usecases.ValidateInviteCodeUseCase
@@ -26,6 +28,7 @@ class InviteCodeComponent(
     private val validateInviteCode: ValidateInviteCodeUseCase by inject()
     private val joinCommunityViaInvite: JoinCommunityViaInviteUseCase by inject()
     private val getCommunityById: GetCommunityById by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -57,20 +60,36 @@ class InviteCodeComponent(
             val result = validateInviteCode(currentCode)
 
             result.onSuccess { invite ->
-                val community = getCommunityById(invite.communityId)
-                _state.update {
-                    it.copy(
-                        isValidating = false,
-                        validatedCommunity = community
-                    )
+                try {
+                    val community = getCommunityById(invite.communityId)
+                    _state.update {
+                        it.copy(
+                            isValidating = false,
+                            validatedCommunity = community
+                        )
+                    }
+                } catch (e: AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                } catch (e: Exception) {
+                    _state.update {
+                        it.copy(
+                            isValidating = false,
+                            error = e.message,
+                            validatedCommunity = null
+                        )
+                    }
                 }
             }.onFailure { error ->
-                _state.update {
-                    it.copy(
-                        isValidating = false,
-                        error = error.message,
-                        validatedCommunity = null
-                    )
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                } else {
+                    _state.update {
+                        it.copy(
+                            isValidating = false,
+                            error = error.message,
+                            validatedCommunity = null
+                        )
+                    }
                 }
             }
         }
@@ -99,7 +118,11 @@ class InviteCodeComponent(
                 }
                 onNavigateToProfileSetup()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message) }
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message) }
+                }
             }
         }
     }

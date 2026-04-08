@@ -9,6 +9,7 @@ import com.arkivanov.decompose.router.stack.pushNew
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.value.Value
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.presentation.navigation.DeepLinkNavigator
 import com.run.peakflow.presentation.state.CommunityTab
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +27,13 @@ class RootComponent(
 
     private val navigation = StackNavigation<Config>()
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val authRepository: AuthRepository by inject()
+
+    /**
+     * Flag to detect if we just restored the state (not starting from Splash/Welcome).
+     * We use this to provide a "grace period" for Supabase to warm up before redirecting.
+     */
+    private var isRestorationGracePeriod = false
 
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
@@ -37,7 +45,52 @@ class RootComponent(
 
     init {
         lifecycle.doOnDestroy { scope.cancel() }
+        
+        // Detect if we were restored to a protected screen
+        val activeConfig = childStack.value.active.configuration
+        if (activeConfig !is Config.Splash && activeConfig !is Config.Welcome && 
+            activeConfig !is Config.SignIn && activeConfig !is Config.SignUp) {
+            println("RootComponent: Detected restoration to protected screen ($activeConfig). Starting grace period...")
+            isRestorationGracePeriod = true
+            scope.launch {
+                kotlinx.coroutines.delay(3000) // 3s grace period for Supabase warm-up
+                println("RootComponent: Restoration grace period expired.")
+                isRestorationGracePeriod = false
+                // Re-trigger auth check manually once grace period ends
+                checkAuthAndRedirect(authRepository.authState.value)
+            }
+        }
+
         observeDeepLinks()
+        observeAuthState()
+    }
+
+    private fun observeAuthState() {
+        scope.launch {
+            authRepository.authState.collect { state ->
+                checkAuthAndRedirect(state)
+            }
+        }
+    }
+
+    private fun checkAuthAndRedirect(state: com.run.peakflow.data.models.AuthState) {
+        // Don't act while still initializing (e.g., app resuming from background)
+        if (state.isInitializing) return
+
+        // During restoration grace period, don't redirect to Welcome even if "not logged in"
+        // because Supabase might still be reading from storage.
+        if (isRestorationGracePeriod) {
+            println("RootComponent: Ignoring 'NotLoggedIn' state during restoration grace period")
+            return
+        }
+
+        val activeConfig = childStack.value.active.configuration
+        if (!state.isLoggedIn && activeConfig !is Config.Splash && 
+            activeConfig !is Config.Welcome && activeConfig !is Config.SignIn && 
+            activeConfig !is Config.SignUp) {
+            println("RootComponent: Definitive 'NotLoggedIn' state detected (not initializing, not in grace period). Redirecting to Welcome...")
+            navigation.replaceAll(Config.Welcome)
+        }
     }
 
     private fun observeDeepLinks() {

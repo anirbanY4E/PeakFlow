@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AuthState(
     val isLoggedIn: Boolean = false,
+    val isInitializing: Boolean = true,
     val isVerified: Boolean = false,
     val hasCompletedOnboarding: Boolean = false,
     val hasCommunity: Boolean = false,

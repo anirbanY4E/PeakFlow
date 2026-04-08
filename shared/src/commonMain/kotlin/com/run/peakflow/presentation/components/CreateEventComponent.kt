@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.domain.usecases.CreateEventUseCase
 import com.run.peakflow.presentation.state.CreateEventState
@@ -25,6 +27,7 @@ class CreateEventComponent(
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val createEvent: CreateEventUseCase by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -104,6 +107,9 @@ class CreateEventComponent(
                 _state.update { it.copy(isLoading = false, isSuccess = true) }
                 onEventCreated()
             }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = error.message) }
             }
         }

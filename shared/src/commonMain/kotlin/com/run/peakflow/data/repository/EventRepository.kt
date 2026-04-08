@@ -14,6 +14,7 @@ import kotlin.time.Clock
 data class EventStateChange(
     val eventId: String,
     val rsvpStatusChanged: Boolean = false,
+    val isRsvped: Boolean? = null,
     val checkInStatusChanged: Boolean = false,
     val participantCountChanged: Boolean = false,
     val newParticipantCount: Int? = null,
@@ -107,6 +108,7 @@ class EventRepository(
             EventStateChange(
                 eventId = eventId,
                 rsvpStatusChanged = true,
+                isRsvped = true,
                 participantCountChanged = true
             )
         )
@@ -120,6 +122,7 @@ class EventRepository(
                 EventStateChange(
                     eventId = eventId,
                     rsvpStatusChanged = true,
+                    isRsvped = false,
                     participantCountChanged = true
                 )
             )

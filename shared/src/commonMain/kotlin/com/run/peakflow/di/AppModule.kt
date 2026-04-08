@@ -90,7 +90,7 @@ val appModule = module {
     factory { SignInWithGoogleUseCase(get(), get()) }
     factory { VerifyOtpUseCase(get()) }
     factory { ResendOtpUseCase(get()) }
-    factory { LogoutUseCase(get(), get()) }  // AuthRepository + GoogleAuthProvider
+    factory { LogoutUseCase(get(), get(), get()) }  // AuthRepository + MembershipRepository + GoogleAuthProvider
 
     // ==================== USE CASES: USER ====================
 

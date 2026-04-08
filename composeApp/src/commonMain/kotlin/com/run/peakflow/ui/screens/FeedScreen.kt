@@ -35,6 +35,7 @@ import com.run.peakflow.ui.components.AvatarImage
 import com.run.peakflow.ui.components.EmptyView
 import com.run.peakflow.ui.components.ErrorView
 import com.run.peakflow.ui.components.LoadingView
+import com.run.peakflow.ui.components.PostCardSkeleton
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
 
@@ -48,7 +49,27 @@ fun FeedScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         when {
-            state.isLoading && state.posts.isEmpty() -> LoadingView()
+            state.isLoading && state.posts.isEmpty() -> {
+                // Show skeleton loaders for initial load
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 80.dp)
+                ) {
+                    item {
+                        Text(
+                            text = "Your Feed",
+                            style = PeakFlowTypography.screenTitle(),
+                            modifier = Modifier.padding(
+                                horizontal = PeakFlowSpacing.screenHorizontal,
+                                vertical = PeakFlowSpacing.sectionGap
+                            )
+                        )
+                    }
+                    items(6) { // Show 6 skeleton cards
+                        PostCardSkeleton(modifier = Modifier.padding(vertical = 6.dp))
+                    }
+                }
+            }
             state.error != null && state.posts.isEmpty() -> ErrorView(message = state.error!!, onRetry = { component.loadFeed() })
             state.posts.isEmpty() -> EmptyView(title = "No posts yet")
             else -> {

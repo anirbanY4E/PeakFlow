@@ -3,6 +3,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { checkRateLimit } from "../_shared/rate-limiter.ts"
+import { invalidateCachePattern, CacheKeys, invalidateCacheKeys } from "../_shared/cache.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +44,10 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    // Rate limiting check
+    const rateLimitResponse = await checkRateLimit('use-invite-code', user.id, corsHeaders);
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { code } = await req.json()
 
@@ -140,6 +146,15 @@ serve(async (req) => {
       .from('invite_codes')
       .update({ current_uses: inviteCode.current_uses + 1 })
       .eq('id', inviteCode.id)
+
+    // 8. Invalidate caches
+    await invalidateCacheKeys([
+      CacheKeys.communityMembers(inviteCode.community_id),
+      CacheKeys.communityStats(inviteCode.community_id),
+      CacheKeys.userCommunities(user.id)
+    ]);
+    await invalidateCachePattern(`user:${user.id}:feed:*`);
+    await invalidateCachePattern(`discover:*`);
 
     return new Response(
       JSON.stringify({

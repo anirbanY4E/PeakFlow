@@ -26,7 +26,10 @@ data class CommunityDetailState(
     val selectedTab: CommunityTab = CommunityTab.POSTS,
     val userRole: MembershipRole? = null,
     val likedPostIds: Set<String> = emptySet(),
-    val rsvpedEventIds: Set<String> = emptySet()
+    val rsvpedEventIds: Set<String> = emptySet(),
+    val rsvpingEventIds: Set<String> = emptySet(),
+    val isJoining: Boolean = false,
+    val hasPendingJoinRequest: Boolean = false
 )
 
 @kotlinx.serialization.Serializable

@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.data.repository.MembershipRepository
 import com.run.peakflow.domain.usecases.ApproveJoinRequestUseCase
 import com.run.peakflow.domain.usecases.GetPendingJoinRequestsUseCase
@@ -32,6 +34,7 @@ class JoinRequestsComponent(
     private val rejectJoinRequest: RejectJoinRequestUseCase by inject()
     private val getUserById: GetUserByIdUseCase by inject()
     private val membershipRepository: MembershipRepository by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -62,6 +65,9 @@ class JoinRequestsComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
@@ -96,6 +102,9 @@ class JoinRequestsComponent(
                     )
                 }
             }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update {
                     it.copy(
                         processingRequestIds = it.processingRequestIds - requestId,
@@ -120,6 +129,9 @@ class JoinRequestsComponent(
                     )
                 }
             }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update {
                     it.copy(
                         processingRequestIds = it.processingRequestIds - requestId,

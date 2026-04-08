@@ -17,6 +17,7 @@ import com.run.peakflow.data.repository.AuthRepository
  */
 class LogoutUseCase(
     private val authRepository: AuthRepository,
+    private val membershipRepository: com.run.peakflow.data.repository.MembershipRepository,
     private val googleAuthProvider: GoogleAuthProvider
 ) {
     suspend operator fun invoke() {
@@ -28,7 +29,11 @@ class LogoutUseCase(
             // Non-fatal — proceed with Supabase sign-out regardless.
         }
 
-        // 2. Sign out from Supabase and clear in-memory session.
+        // 2. Purge ALL client-side caches to prevent cross-account data bleed.
+        membershipRepository.invalidateMembershipCache()
+        com.run.peakflow.data.cache.ProfileCache.clear()
+
+        // 3. Sign out from Supabase and clear the local session.
         authRepository.logout()
     }
 }

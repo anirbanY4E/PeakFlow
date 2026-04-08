@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.domain.usecases.CreatePostUseCase
 import com.run.peakflow.presentation.state.CreatePostState
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +26,7 @@ class CreatePostComponent(
 ) : ComponentContext by componentContext, KoinComponent {
 
     private val createPost: CreatePostUseCase by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -68,6 +71,9 @@ class CreatePostComponent(
                 _state.update { it.copy(isLoading = false, isSuccess = true) }
                 onPostCreated()
             }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = error.message) }
             }
         }

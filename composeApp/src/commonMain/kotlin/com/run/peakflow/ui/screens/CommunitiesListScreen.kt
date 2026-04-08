@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.run.peakflow.data.models.CommunityGroup
 import com.run.peakflow.presentation.components.CommunitiesListComponent
 import com.run.peakflow.presentation.state.CommunitiesTab
+import com.run.peakflow.ui.components.CommunityCardSkeleton
 import com.run.peakflow.ui.components.CommunityImage
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 import com.run.peakflow.ui.theme.PeakFlowTypography
@@ -91,31 +93,50 @@ fun CommunitiesListScreen(
             )
         }
 
+        val communities = if (state.selectedTab == CommunitiesTab.MY_GROUPS) state.myGroups else state.discoverGroups
+        val showSkeletons = state.isLoading && communities.isEmpty()
+
         PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
+            isRefreshing = state.isRefreshing && !showSkeletons,
             onRefresh = { component.onRefresh() },
             modifier = Modifier.fillMaxSize()
         ) {
-            val communities = if (state.selectedTab == CommunitiesTab.MY_GROUPS) state.myGroups else state.discoverGroups
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = PeakFlowSpacing.screenHorizontal,
-                    end = PeakFlowSpacing.screenHorizontal,
-                    top = 16.dp,
-                    bottom = 32.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(communities, key = { it.id }) { community ->
-                    CommunityCard(
-                        community = community,
-                        isMember = state.selectedTab == CommunitiesTab.MY_GROUPS,
-                        isPending = community.id in state.pendingRequestCommunityIds,
-                        onCommunityClick = { component.onCommunityClick(community.id) },
-                        onRequestToJoinClick = { component.onRequestToJoinClick(community.id) }
-                    )
+            if (showSkeletons) {
+                // Show skeleton loaders for initial load
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = PeakFlowSpacing.screenHorizontal,
+                        end = PeakFlowSpacing.screenHorizontal,
+                        top = 16.dp,
+                        bottom = 32.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(4) {
+                        CommunityCardSkeleton()
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = PeakFlowSpacing.screenHorizontal,
+                        end = PeakFlowSpacing.screenHorizontal,
+                        top = 16.dp,
+                        bottom = 32.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(communities, key = { it.id }) { community ->
+                        CommunityCard(
+                            community = community,
+                            isMember = state.selectedTab == CommunitiesTab.MY_GROUPS,
+                            isPending = community.id in state.pendingRequestCommunityIds,
+                            onCommunityClick = { component.onCommunityClick(community.id) },
+                            onRequestToJoinClick = { component.onRequestToJoinClick(community.id) }
+                        )
+                    }
                 }
             }
         }

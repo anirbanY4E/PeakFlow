@@ -3,6 +3,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { checkRateLimit } from "../_shared/rate-limiter.ts"
+import { invalidateCachePattern, CacheKeys, invalidateCacheKeys } from "../_shared/cache.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +43,10 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    // Rate limiting check
+    const rateLimitResponse = await checkRateLimit('approve-join-request', user.id, corsHeaders);
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { requestId } = await req.json()
 
@@ -137,12 +143,20 @@ serve(async (req) => {
       })
       .eq('id', requestId)
 
-    // 6. Get user profile to return in response
     const { data: userProfile } = await supabaseClient
       .from('profiles')
       .select('*')
       .eq('id', joinRequest.user_id)
       .single()
+
+    // Invalidate caches
+    await invalidateCacheKeys([
+      CacheKeys.communityMembers(joinRequest.community_id),
+      CacheKeys.communityStats(joinRequest.community_id),
+      CacheKeys.userCommunities(joinRequest.user_id)
+    ]);
+    await invalidateCachePattern(`user:${joinRequest.user_id}:feed:*`);
+    await invalidateCachePattern(`discover:*`);
 
     return new Response(
       JSON.stringify({

@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.models.User
 import com.run.peakflow.domain.usecases.GetCurrentUserUseCase
@@ -26,6 +28,7 @@ class EditProfileComponent(
 
     private val getCurrentUser: GetCurrentUserUseCase by inject()
     private val updateUser: UpdateUserUseCase by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -56,6 +59,9 @@ class EditProfileComponent(
                     _state.update { it.copy(isLoading = false, error = "User not found") }
                 }
             } catch (e: Exception) {
+                if (e is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
@@ -113,6 +119,9 @@ class EditProfileComponent(
                 _state.update { it.copy(isLoading = false, isSuccess = true) }
                 onNavigateBack()
             }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = error.message) }
             }
         }

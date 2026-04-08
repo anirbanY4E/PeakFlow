@@ -2,6 +2,8 @@ package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.AuthenticationException
+import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.domain.usecases.GenerateInviteCodeUseCase
 import com.run.peakflow.domain.usecases.GetCommunityById
 import com.run.peakflow.domain.usecases.GetUserInviteCodesUseCase
@@ -28,6 +30,7 @@ class GenerateInviteComponent(
     private val getCommunityById: GetCommunityById by inject()
     private val generateInviteCode: GenerateInviteCodeUseCase by inject()
     private val getUserInviteCodes: GetUserInviteCodesUseCase by inject()
+    private val authRepository: AuthRepository by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -55,6 +58,9 @@ class GenerateInviteComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
@@ -84,6 +90,9 @@ class GenerateInviteComponent(
                     )
                 }
             }.onFailure { error ->
+                if (error is AuthenticationException) {
+                    authRepository.handleAuthenticationError()
+                }
                 _state.update { it.copy(isGenerating = false, error = error.message) }
             }
         }

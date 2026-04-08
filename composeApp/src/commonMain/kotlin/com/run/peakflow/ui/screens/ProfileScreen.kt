@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.run.peakflow.presentation.components.ProfileComponent
 import com.run.peakflow.presentation.state.ProfileStats
 import com.run.peakflow.ui.components.AvatarImage
+import com.run.peakflow.ui.components.ProfileSkeleton
 import com.run.peakflow.ui.theme.PeakFlowSpacing
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -79,9 +80,7 @@ fun ProfileScreen(
 
         when {
             state.isLoading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { 
-                    CircularProgressIndicator(strokeWidth = 3.dp) 
-                }
+                ProfileSkeleton(modifier = Modifier.fillMaxSize())
             }
             state.user != null -> {
                 Column(
