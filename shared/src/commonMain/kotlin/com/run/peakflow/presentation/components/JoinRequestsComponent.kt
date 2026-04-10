@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
@@ -65,6 +66,7 @@ class JoinRequestsComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }

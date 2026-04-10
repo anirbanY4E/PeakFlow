@@ -22,6 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
@@ -135,6 +137,7 @@ class CommunityDetailComponent(
                 val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
                 _state.update { it.copy(events = events, rsvpedEventIds = rsvpedIds) }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 // Silently fail
             }
         }
@@ -170,6 +173,7 @@ class CommunityDetailComponent(
                     currentState.copy(posts = mergedPosts, likedPostIds = mergedLikedIds)
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 // Silently fail
             }
         }
@@ -196,76 +200,80 @@ class CommunityDetailComponent(
         }
     }
 
-    fun loadCommunity() {
+    fun loadCommunity(isRefresh: Boolean = false) {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null, postsOffset = 0, hasMorePosts = true) }
+            if (isRefresh) {
+                _state.update { it.copy(isRefreshing = true, error = null) }
+            } else {
+                _state.update { it.copy(isLoading = true, error = null, postsOffset = 0, hasMorePosts = true) }
+            }
 
             try {
-                // Parallelize all 4 independent fetches
-                val communityDeferred = async { getCommunityById(communityId) }
-                val postsDeferred = async { getCommunityPosts(communityId, limit = 20, offset = 0) }
-                val eventsWithRsvpDeferred = async { eventRepository.getCommunityEventsWithRsvp(communityId) }
-                val membersDeferred = async { membershipRepository.getCommunityMembersWithProfiles(communityId) }
-                val userRoleDeferred = async { getUserRoleInCommunity(communityId) }
-                val pendingJoinRequestDeferred = async { 
-                    val userId = userRepository.getCurrentUserId()
-                    if (userId != null && userRoleDeferred.await() == null) {
-                        membershipRepository.hasUserRequestedToJoin(userId, communityId)
-                    } else false
-                }
+                coroutineScope {
+                    // Parallelize all independent fetches inside coroutineScope{} so failures
+                    // propagate into this try/catch instead of crashing with FATAL EXCEPTION
+                    val communityDeferred = async { getCommunityById(communityId) }
+                    val postsDeferred = async { getCommunityPosts(communityId, limit = 20, offset = 0) }
+                    val eventsWithRsvpDeferred = async { eventRepository.getCommunityEventsWithRsvp(communityId) }
+                    val membersDeferred = async { membershipRepository.getCommunityMembersWithProfiles(communityId) }
+                    val userRoleDeferred = async { getUserRoleInCommunity(communityId) }
+                    val pendingJoinRequestDeferred = async {
+                        val userId = userRepository.getCurrentUserId()
+                        if (userId != null && userRoleDeferred.await() == null) {
+                            membershipRepository.hasUserRequestedToJoin(userId, communityId)
+                        } else false
+                    }
 
-                // Await all in parallel
-                val community = communityDeferred.await()
-                val posts = postsDeferred.await()
-                val eventsWithRsvp = eventsWithRsvpDeferred.await()
-                val membersWithProfiles = membersDeferred.await()
-                val userRole = userRoleDeferred.await()
+                    val community = communityDeferred.await()
+                    val posts = postsDeferred.await()
+                    val eventsWithRsvp = eventsWithRsvpDeferred.await()
+                    val membersWithProfiles = membersDeferred.await()
+                    val userRole = userRoleDeferred.await()
 
-                // Use is_liked from the get_community_posts RPC — no N+1!
-                val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
-
-                // Events + RSVP from the batch RPC — no N+1!
-                val events = eventsWithRsvp.map { it.first }
-                val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
-
-                // Members already have profile info from the batch RPC — no N+1!
-                val membersWithUsers = membersWithProfiles.map { mwp ->
-                    MemberWithUser(
-                        membership = mwp.membership,
-                        user = User(
-                            id = mwp.membership.userId,
-                            name = mwp.userName,
-                            email = mwp.userEmail,
-                            phone = null,
-                            city = "",
-                            avatarUrl = mwp.userAvatarUrl,
-                            interests = emptyList(),
-                            createdAt = 0L,
-                            isVerified = false
+                    val likedIds = posts.filter { it.isLiked }.map { it.id }.toSet()
+                    val events = eventsWithRsvp.map { it.first }
+                    val rsvpedIds = eventsWithRsvp.filter { it.second }.map { it.first.id }.toSet()
+                    val membersWithUsers = membersWithProfiles.map { mwp ->
+                        MemberWithUser(
+                            membership = mwp.membership,
+                            user = User(
+                                id = mwp.membership.userId,
+                                name = mwp.userName,
+                                email = mwp.userEmail,
+                                phone = null,
+                                city = "",
+                                avatarUrl = mwp.userAvatarUrl,
+                                interests = emptyList(),
+                                createdAt = 0L,
+                                isVerified = false
+                            )
                         )
-                    )
-                }
+                    }
 
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        community = community,
-                        posts = posts.distinctBy { p -> p.id }, // Defensive dedup
-                        hasMorePosts = posts.size == 20,
-                        events = events,
-                        members = membersWithUsers,
-                        userRole = userRole,
-                        likedPostIds = likedIds,
-                        rsvpedEventIds = rsvpedIds,
-                        hasPendingJoinRequest = pendingJoinRequestDeferred.await()
-                    )
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            community = community,
+                            posts = posts.distinctBy { p -> p.id },
+                            hasMorePosts = posts.size == 20,
+                            events = events,
+                            members = membersWithUsers,
+                            userRole = userRole,
+                            likedPostIds = likedIds,
+                            rsvpedEventIds = rsvpedIds,
+                            hasPendingJoinRequest = pendingJoinRequestDeferred.await()
+                        )
+                    }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }
-                _state.update { it.copy(isLoading = false, error = e.message) }
+                _state.update { it.copy(isLoading = false, isRefreshing = false, error = e.message) }
             }
+
         }
     }
 
@@ -289,6 +297,7 @@ class CommunityDetailComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }
@@ -298,11 +307,7 @@ class CommunityDetailComponent(
     }
 
     fun onRefresh() {
-        scope.launch {
-            _state.update { it.copy(isRefreshing = true) }
-            loadCommunity()
-            _state.update { it.copy(isRefreshing = false) }
-        }
+        loadCommunity(isRefresh = true)
     }
 
     fun onTabSelected(tab: CommunityTab) {

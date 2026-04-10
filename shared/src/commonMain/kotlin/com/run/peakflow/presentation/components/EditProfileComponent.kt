@@ -12,6 +12,7 @@ import com.run.peakflow.presentation.state.EditProfileState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +60,7 @@ class EditProfileComponent(
                     _state.update { it.copy(isLoading = false, error = "User not found") }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }

@@ -9,6 +9,8 @@ import com.arkivanov.decompose.router.stack.pushNew
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.value.Value
 import com.arkivanov.essenty.lifecycle.doOnDestroy
+import com.run.peakflow.data.network.ApiService
+import com.run.peakflow.data.network.NotificationEvent
 import com.run.peakflow.data.repository.AuthRepository
 import com.run.peakflow.presentation.navigation.DeepLinkNavigator
 import com.run.peakflow.presentation.state.CommunityTab
@@ -16,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
@@ -28,6 +31,7 @@ class RootComponent(
     private val navigation = StackNavigation<Config>()
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val authRepository: AuthRepository by inject()
+    private val api: ApiService by inject()
 
     /**
      * Flag to detect if we just restored the state (not starting from Splash/Welcome).
@@ -53,16 +57,41 @@ class RootComponent(
             println("RootComponent: Detected restoration to protected screen ($activeConfig). Starting grace period...")
             isRestorationGracePeriod = true
             scope.launch {
-                kotlinx.coroutines.delay(3000) // 3s grace period for Supabase warm-up
-                println("RootComponent: Restoration grace period expired.")
+                // Auth-state-driven grace period: wait until Supabase has fully settled
+                // (token loaded from storage + any expired-token refresh retry completed).
+                // This is safer than a fixed delay(3000) because on a slow network the
+                // refresh can take well over 3 seconds.
+                authRepository.authState.first { !it.isInitializing }
+                println("RootComponent: Auth settled — restoration grace period ended.")
                 isRestorationGracePeriod = false
-                // Re-trigger auth check manually once grace period ends
+                // Re-trigger auth check with the now-settled state
                 checkAuthAndRedirect(authRepository.authState.value)
             }
         }
 
         observeDeepLinks()
+        observeNotificationEvents()
         observeAuthState()
+    }
+
+    private fun observeNotificationEvents() {
+        scope.launch {
+            api.observeNotificationEvents().collect { event ->
+                when (event) {
+                    is NotificationEvent.DeepLink -> {
+                        val communityId = event.data["community_id"]
+                        if (communityId != null) {
+                            DeepLinkNavigator.navigate(
+                                DeepLinkNavigator.DeepLink.CommunityPost(
+                                    communityId = communityId,
+                                    postId = event.data["post_id"]
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun observeAuthState() {

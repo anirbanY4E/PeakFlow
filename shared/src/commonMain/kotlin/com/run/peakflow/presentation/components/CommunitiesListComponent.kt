@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlin.coroutines.cancellation.CancellationException
 
 class CommunitiesListComponent(
     componentContext: ComponentContext,
@@ -90,30 +92,32 @@ class CommunitiesListComponent(
                     return@launch
                 }
 
-                // Parallelize both fetches
-                val myGroupsDeferred = async { getUserCommunities() }
-                val discoverGroupsDeferred = async { getDiscoverCommunities("Bangalore") }
+                // Parallelize both fetches inside coroutineScope{} so failures are caught
+                coroutineScope {
+                    val myGroupsDeferred = async { getUserCommunities() }
+                    val discoverGroupsDeferred = async { getDiscoverCommunities("Bangalore") }
 
-                val myGroups = myGroupsDeferred.await()
-                val discoverGroups = discoverGroupsDeferred.await()
+                    val myGroups = myGroupsDeferred.await()
+                    val discoverGroups = discoverGroupsDeferred.await()
 
-                // Batch-fetch pending join request community IDs in ONE query instead of N+1
-                val userId = userRepository.getCurrentUserId()
-                val pendingIds = if (userId != null) {
-                    membershipRepository.getPendingJoinRequestCommunityIds(userId)
-                } else {
-                    emptySet()
-                }
+                    val userId = userRepository.getCurrentUserId()
+                    val pendingIds = if (userId != null) {
+                        membershipRepository.getPendingJoinRequestCommunityIds(userId)
+                    } else {
+                        emptySet()
+                    }
 
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        myGroups = myGroups,
-                        discoverGroups = discoverGroups,
-                        pendingRequestCommunityIds = pendingIds
-                    )
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            myGroups = myGroups,
+                            discoverGroups = discoverGroups,
+                            pendingRequestCommunityIds = pendingIds
+                        )
+                    }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }
@@ -140,28 +144,31 @@ class CommunitiesListComponent(
                     return@launch
                 }
 
-                val myGroupsDeferred = async { getUserCommunities() }
-                val discoverGroupsDeferred = async { getDiscoverCommunities("Bangalore") }
+                coroutineScope {
+                    val myGroupsDeferred = async { getUserCommunities() }
+                    val discoverGroupsDeferred = async { getDiscoverCommunities("Bangalore") }
 
-                val myGroups = myGroupsDeferred.await()
-                val discoverGroups = discoverGroupsDeferred.await()
+                    val myGroups = myGroupsDeferred.await()
+                    val discoverGroups = discoverGroupsDeferred.await()
 
-                val userId = userRepository.getCurrentUserId()
-                val pendingIds = if (userId != null) {
-                    membershipRepository.getPendingJoinRequestCommunityIds(userId)
-                } else {
-                    emptySet()
-                }
+                    val userId = userRepository.getCurrentUserId()
+                    val pendingIds = if (userId != null) {
+                        membershipRepository.getPendingJoinRequestCommunityIds(userId)
+                    } else {
+                        emptySet()
+                    }
 
-                _state.update {
-                    it.copy(
-                        isRefreshing = false,
-                        myGroups = myGroups,
-                        discoverGroups = discoverGroups,
-                        pendingRequestCommunityIds = pendingIds
-                    )
+                    _state.update {
+                        it.copy(
+                            isRefreshing = false,
+                            myGroups = myGroups,
+                            discoverGroups = discoverGroups,
+                            pendingRequestCommunityIds = pendingIds
+                        )
+                    }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }

@@ -558,6 +558,11 @@ class MockApiService : ApiService {
         return "mock_user_123"
     }
 
+    override suspend fun waitForAuthenticated(): String? {
+        // Mock is always authenticated
+        return "mock_user_123"
+    }
+
     override suspend fun logout() {
         delay(200)
     }
@@ -1263,6 +1268,10 @@ class MockApiService : ApiService {
     }
 
     // ==================== PUSH NOTIFICATIONS ====================
+
+    override fun observeNotificationEvents(): Flow<NotificationEvent> {
+        return emptyFlow()
+    }
 
     override suspend fun syncFcmToken(token: String) {
         // No-op in mock

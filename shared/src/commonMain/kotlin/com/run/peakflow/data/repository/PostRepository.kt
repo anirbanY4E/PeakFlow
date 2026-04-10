@@ -28,9 +28,26 @@ class PostRepository(
         return api.getCommunityPosts(communityId, limit, offset)
     }
 
+    private var feedCache: List<Post>? = null
+    private var feedCacheTime: Long = 0
+    private var cachedCommunityIds: List<String> = emptyList()
+
     suspend fun getFeedPosts(communityIds: List<String>, limit: Int = 50, offset: Int = 0): List<Post> {
+        if (offset == 0) {
+            val now = Clock.System.now().toEpochMilliseconds()
+            val sortedIds = communityIds.sorted()
+            if (feedCache != null && (now - feedCacheTime) < 30_000 && sortedIds == cachedCommunityIds) {
+                return feedCache!!
+            }
+            val fresh = api.getFeedPosts(communityIds, limit, offset)
+            feedCache = fresh
+            feedCacheTime = now
+            cachedCommunityIds = sortedIds
+            return fresh
+        }
         return api.getFeedPosts(communityIds, limit, offset)
     }
+
 
     suspend fun getPostById(postId: String): Post? {
         return api.getPostById(postId)

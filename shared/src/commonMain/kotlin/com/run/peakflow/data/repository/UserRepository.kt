@@ -3,11 +3,15 @@ package com.run.peakflow.data.repository
 import com.run.peakflow.data.models.EventCategory
 import com.run.peakflow.data.models.User
 import com.run.peakflow.data.network.ApiService
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
 
 class UserRepository(
     private val api: ApiService
 ) {
+    private val mutex = Mutex()
+
     // Cache of current user ID (backed by persistent Supabase session)
     private var currentUserId: String? = null
 
@@ -25,28 +29,32 @@ class UserRepository(
 
     // ==================== Public API ====================
 
-    fun setCurrentUserId(userId: String?) {
-        currentUserId = userId
+    suspend fun setCurrentUserId(userId: String?) {
+        mutex.withLock {
+            currentUserId = userId
+        }
     }
 
-    fun getCurrentUserId(): String? = currentUserId
+    suspend fun getCurrentUserId(): String? = mutex.withLock { currentUserId }
 
     suspend fun getUser(userId: String): User? {
         // Check cache first
-        val cached = userCache[userId]
+        val cached = mutex.withLock { userCache[userId] }
         if (cached != null && isCacheValid(cached.cachedAt)) {
             return cached.user
         }
         // Fetch from network and cache
         val user = api.getUser(userId)
         if (user != null) {
-            userCache[userId] = CachedUser(user, Clock.System.now().toEpochMilliseconds())
+            mutex.withLock {
+                userCache[userId] = CachedUser(user, Clock.System.now().toEpochMilliseconds())
+            }
         }
         return user
     }
 
     suspend fun getCurrentUser(): User? {
-        val userId = currentUserId ?: return null
+        val userId = getCurrentUserId() ?: return null
         return getUser(userId)
     }
 
@@ -67,7 +75,9 @@ class UserRepository(
         println("DEBUG UserRepo.updateUser: updating profile with avatarUrl=$updatedAvatarUrl")
         val updated = api.updateUser(userToUpdate)
         // Invalidate cache so next read gets fresh data
-        userCache[updated.id] = CachedUser(updated, Clock.System.now().toEpochMilliseconds())
+        mutex.withLock {
+            userCache[updated.id] = CachedUser(updated, Clock.System.now().toEpochMilliseconds())
+        }
         return updated
     }
 
@@ -86,7 +96,9 @@ class UserRepository(
         }
         val user = api.completeProfile(userId, name, city, interests, avatarUrl)
         // Update cache with fresh profile
-        userCache[user.id] = CachedUser(user, Clock.System.now().toEpochMilliseconds())
+        mutex.withLock {
+            userCache[user.id] = CachedUser(user, Clock.System.now().toEpochMilliseconds())
+        }
         return user
     }
 
@@ -97,21 +109,23 @@ class UserRepository(
      */
     suspend fun isLoggedIn(): Boolean {
         // First check in-memory cache
-        if (currentUserId != null) {
+        if (getCurrentUserId() != null) {
             return true
         }
         // Then check persistent session storage
         val sessionUserId = api.waitForSessionLoaded()
         if (sessionUserId != null) {
-            currentUserId = sessionUserId
+            setCurrentUserId(sessionUserId)
             return true
         }
         return false
     }
 
     suspend fun logout() {
-        currentUserId = null
-        userCache.clear()
+        mutex.withLock {
+            currentUserId = null
+            userCache.clear()
+        }
         api.logout()
     }
 }

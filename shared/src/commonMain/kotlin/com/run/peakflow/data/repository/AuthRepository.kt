@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class AuthRepository(
     private val api: ApiService,
@@ -21,6 +23,7 @@ class AuthRepository(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val _authState = MutableStateFlow(AuthState())
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    private val settlementMutex = Mutex()
 
     init {
         observeSessionStatus()
@@ -58,19 +61,38 @@ class AuthRepository(
                         }
                     }
                     AuthSessionStatus.NotAuthenticated -> {
-                        // Hardened: If we're still in the "Initializing" phase of the app launch,
-                        // don't immediately jump to NotAuthenticated. Wait for the SDK to be sure.
+                        // Guard: always confirm NotAuthenticated is truly terminal before acting.
+                        // The SDK can briefly emit NotAuthenticated during RefreshFailure retries
+                        // even AFTER the app was previously authenticated. We must not log the
+                        // user out based on a transient signal.
                         if (_authState.value.isInitializing) {
                             println("AuthRepository: Received NotAuthenticated while initializing, waiting for settlement...")
-                            val settledUserId = api.waitForSessionLoaded()
-                            if (settledUserId != null) {
-                                println("AuthRepository: Settled on Authenticated ($settledUserId), ignoring NotAuthenticated")
+                        } else {
+                            println("AuthRepository: Received NotAuthenticated (post-init), confirming with waitForAuthenticated...")
+                        }
+
+                        val settledUserId = settlementMutex.withLock {
+                            // If another coroutine already resolved this and transitioned us to
+                            // Authenticated, skip the wait.
+                            if (!_authState.value.isInitializing && _authState.value.isLoggedIn) {
+                                // We were already confirmed authenticated — this is a stale
+                                // NotAuthenticated event from a RefreshFailure cycle we survived.
+                                println("AuthRepository: Already authenticated, ignoring stale NotAuthenticated")
                                 return@collect
                             }
-                            println("AuthRepository: Settled on NotAuthenticated after wait")
-                        } else {
-                            println("AuthRepository: Received NotAuthenticated (not in initialization phase)")
+                            // Use waitForAuthenticated (NOT waitForSessionLoaded) so we wait up to
+                            // 10s for the SDK to complete its refresh retry.
+                            // waitForSessionLoaded() would return null immediately because the
+                            // current StateFlow value IS NotAuthenticated (a terminal state for it),
+                            // defeating the entire purpose of this guard.
+                            api.waitForAuthenticated()
                         }
+
+                        if (settledUserId != null) {
+                            println("AuthRepository: Settled on Authenticated ($settledUserId), ignoring NotAuthenticated")
+                            return@collect
+                        }
+                        println("AuthRepository: Confirmed NotAuthenticated — clearing session")
 
                         userRepository.setCurrentUserId(null)
                         _authState.value = AuthState(isLoggedIn = false, isInitializing = false)
@@ -175,5 +197,5 @@ class AuthRepository(
         _authState.value = AuthState(isLoggedIn = false, isInitializing = false)
     }
 
-    fun getCurrentUserId(): String? = userRepository.getCurrentUserId()
+    suspend fun getCurrentUserId(): String? = userRepository.getCurrentUserId()
 }

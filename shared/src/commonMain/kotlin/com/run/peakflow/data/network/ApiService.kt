@@ -45,7 +45,21 @@ sealed interface AuthSessionStatus {
     object NetworkError : AuthSessionStatus
 }
 
+/**
+ * Represents a notification event (e.g. push notification clicked).
+ */
+sealed interface NotificationEvent {
+    data class DeepLink(val data: Map<String, String>) : NotificationEvent
+}
+
 interface ApiService {
+
+    // ==================== NOTIFICATIONS ====================
+
+    /**
+     * Observe notification events like deep link clicks.
+     */
+    fun observeNotificationEvents(): Flow<NotificationEvent>
 
     // ==================== AUTH ====================
 
@@ -93,6 +107,15 @@ interface ApiService {
      * Returns the user ID if authenticated, null otherwise.
      */
     suspend fun waitForSessionLoaded(): String?
+
+    /**
+     * Wait specifically for an [AuthSessionStatus.Authenticated] state.
+     * Unlike [waitForSessionLoaded], this does NOT treat [AuthSessionStatus.NotAuthenticated]
+     * as an immediate terminal condition. It waits up to 10 seconds for Authenticated,
+     * returning null only on timeout. Use this when confirming a suspected-transient
+     * NotAuthenticated event (e.g., between RefreshFailure retries).
+     */
+    suspend fun waitForAuthenticated(): String?
 
     suspend fun logout()
 

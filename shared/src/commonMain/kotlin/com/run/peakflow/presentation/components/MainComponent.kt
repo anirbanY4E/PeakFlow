@@ -1,6 +1,7 @@
 package com.run.peakflow.presentation.components
 
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.decompose.childContext
 import com.arkivanov.essenty.backhandler.BackCallback
 import com.run.peakflow.presentation.state.MainState
 import com.run.peakflow.presentation.state.MainTab
@@ -34,7 +35,7 @@ class MainComponent(
 
     // Feed is eager — it's the default visible tab
     val feedComponent = FeedComponent(
-        componentContext = componentContext,
+        componentContext = childContext("Feed"),
         onNavigateToPostDetail = onNavigateToPostDetail,
         onNavigateToCommunityDetail = onNavigateToCommunityDetail
     )
@@ -42,21 +43,21 @@ class MainComponent(
     // Lazy-load other tabs — only initialize when first accessed
     val eventsListComponent by lazy {
         EventsListComponent(
-            componentContext = componentContext,
+            componentContext = childContext("Events"),
             onNavigateToEventDetail = onNavigateToEventDetail
         )
     }
 
     val communitiesListComponent by lazy {
         CommunitiesListComponent(
-            componentContext = componentContext,
+            componentContext = childContext("Communities"),
             onNavigateToCommunityDetail = onNavigateToCommunityDetail
         )
     }
 
     val profileComponent by lazy {
         ProfileComponent(
-            componentContext = componentContext,
+            componentContext = childContext("Profile"),
             onNavigateToSettings = onNavigateToSettings,
             onNavigateToEditProfile = onNavigateToEditProfile,
             onLogout = onLogout

@@ -4,11 +4,15 @@ import com.run.peakflow.data.models.CommunityMembership
 import com.run.peakflow.data.models.JoinRequest
 import com.run.peakflow.data.network.ApiService
 import com.run.peakflow.data.network.CommunityMemberWithProfile
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
 
 class MembershipRepository(
     private val api: ApiService
 ) {
+    private val mutex = Mutex()
+
     // ==================== In-Memory Cache ====================
 
     private data class CachedMemberships(
@@ -25,11 +29,13 @@ class MembershipRepository(
     }
 
     /** Invalidate membership cache for a specific user (or all users). */
-    fun invalidateMembershipCache(userId: String? = null) {
-        if (userId != null) {
-            membershipCache.remove(userId)
-        } else {
-            membershipCache.clear()
+    suspend fun invalidateMembershipCache(userId: String? = null) {
+        mutex.withLock {
+            if (userId != null) {
+                membershipCache.remove(userId)
+            } else {
+                membershipCache.clear()
+            }
         }
     }
 
@@ -37,13 +43,15 @@ class MembershipRepository(
 
     suspend fun getUserMemberships(userId: String): List<CommunityMembership> {
         // Check cache first
-        val cached = membershipCache[userId]
+        val cached = mutex.withLock { membershipCache[userId] }
         if (cached != null && isCacheValid(cached.cachedAt)) {
             return cached.memberships
         }
         // Fetch from network and cache
         val memberships = api.getUserMemberships(userId)
-        membershipCache[userId] = CachedMemberships(memberships, Clock.System.now().toEpochMilliseconds())
+        mutex.withLock {
+            membershipCache[userId] = CachedMemberships(memberships, Clock.System.now().toEpochMilliseconds())
+        }
         return memberships
     }
 
@@ -80,7 +88,9 @@ class MembershipRepository(
     suspend fun approveJoinRequest(requestId: String, reviewedBy: String): CommunityMembership {
         val result = api.approveJoinRequest(requestId, reviewedBy)
         // Invalidate cache since memberships changed
-        membershipCache.clear()
+        mutex.withLock {
+            membershipCache.clear()
+        }
         return result
     }
 

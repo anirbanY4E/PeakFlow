@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,7 @@ class SplashComponent(
     private val isUserLoggedIn: IsUserLoggedInUseCase by inject()
     private val getCurrentUser: GetCurrentUserUseCase by inject()
     private val getUserMemberships: GetUserMembershipsUseCase by inject()
+    private val getFeedPosts: com.run.peakflow.domain.usecases.GetFeedPostsUseCase by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -52,15 +54,26 @@ class SplashComponent(
         _state.update { it.copy(isLoading = true, errorMessage = null) }
         scope.launch {
             try {
-                // Wait for Supabase to initialize session from storage with timeout
-                if (SupabaseConfig.client.auth.sessionStatus.value is SessionStatus.Initializing) {
-                    println("SplashComponent: Waiting for session initialization...")
-                    withTimeoutOrNull(5000) {
-                        SupabaseConfig.client.auth.sessionStatus.first { it !is SessionStatus.Initializing }
+                // Wait for a TERMINAL session state before making any navigation decision.
+                // We must ride through ALL transient states:
+                //   Initializing   → SDK loading session from storage
+                //   RefreshFailure → SDK found expired token and is retrying the refresh
+                // Using a 10-second timeout to match waitForSessionLoaded for slow networks.
+                val currentStatus = SupabaseConfig.client.auth.sessionStatus.value
+                val isTransient = currentStatus is SessionStatus.Initializing ||
+                        currentStatus::class.simpleName == "RefreshFailure"
+                if (isTransient) {
+                    println("SplashComponent: Waiting for session to settle (current: $currentStatus)...")
+                    withTimeoutOrNull(10_000) {
+                        SupabaseConfig.client.auth.sessionStatus.first { status ->
+                            status is SessionStatus.Authenticated ||
+                                    status is SessionStatus.NotAuthenticated
+                        }
                     }
-                    println("SplashComponent: Session initialization finished or timed out (status: ${SupabaseConfig.client.auth.sessionStatus.value})")
+                    println("SplashComponent: Session settled (status: ${SupabaseConfig.client.auth.sessionStatus.value})")
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 println("SplashComponent: Initialization check failed: ${e.message}")
             }
 
@@ -86,6 +99,7 @@ class SplashComponent(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     println("SplashComponent: Session refresh failed: ${e.message}")
                     // If refresh fails, redirect to login
                     _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.WELCOME) }
@@ -125,10 +139,20 @@ class SplashComponent(
                     return@launch
                 }
 
+                try {
+                    // Option 2: "Hold the Door" - pre-fetch feed posts before leaving the splash screen
+                    // This warms the in-memory cache in PostRepository so FeedComponent loads instantly
+                    getFeedPosts(limit = 20, offset = 0)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    println("SplashComponent: Feed pre-fetch failed: ${e.message}, silently continuing...")
+                }
+
                 // All good, go to main
                 _state.update { it.copy(isLoading = false, navigationTarget = NavigationTarget.MAIN) }
                 onNavigateToMain()
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 println("Failed to initialize session: ${e.message}")
                 _state.update { it.copy(isLoading = false, errorMessage = "Failed to connect to servers. Please try again.") }
             }

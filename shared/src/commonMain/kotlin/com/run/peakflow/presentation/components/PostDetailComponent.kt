@@ -11,6 +11,8 @@ import com.run.peakflow.domain.usecases.HasUserLikedPostUseCase
 import com.run.peakflow.domain.usecases.LikePostUseCase
 import com.run.peakflow.presentation.state.PostDetailState
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,28 +56,30 @@ class PostDetailComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
-                // Fetch post first (community depends on its communityId)
                 val post = getPostById(postId)
 
-                // Then parallelize the 3 independent calls
-                val communityDeferred = async { post?.let { getCommunityById(it.communityId) } }
-                val commentsDeferred = async { getPostComments(postId) }
-                val hasLikedDeferred = async { hasUserLikedPost(postId) }
+                // Parallelize inside coroutineScope{} so failures propagate into try/catch
+                coroutineScope {
+                    val communityDeferred = async { post?.let { getCommunityById(it.communityId) } }
+                    val commentsDeferred = async { getPostComments(postId) }
+                    val hasLikedDeferred = async { hasUserLikedPost(postId) }
 
-                val community = communityDeferred.await()
-                val comments = commentsDeferred.await()
-                val hasLiked = hasLikedDeferred.await()
+                    val community = communityDeferred.await()
+                    val comments = commentsDeferred.await()
+                    val hasLiked = hasLikedDeferred.await()
 
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        post = post,
-                        community = community,
-                        comments = comments,
-                        hasLiked = hasLiked
-                    )
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            post = post,
+                            community = community,
+                            comments = comments,
+                            hasLiked = hasLiked
+                        )
+                    }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is com.run.peakflow.data.network.AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }
@@ -83,6 +87,7 @@ class PostDetailComponent(
             }
         }
     }
+
 
     fun onBackClick() {
         onNavigateBack()

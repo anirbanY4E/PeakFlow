@@ -11,6 +11,7 @@ import com.run.peakflow.presentation.state.GenerateInviteState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +59,7 @@ class GenerateInviteComponent(
                     )
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }

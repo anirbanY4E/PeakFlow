@@ -68,6 +68,9 @@ class SupabaseApiService(
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
+    private val _notificationEvents = kotlinx.coroutines.flow.MutableSharedFlow<NotificationEvent>(extraBufferCapacity = 10)
+    override fun observeNotificationEvents(): Flow<NotificationEvent> = _notificationEvents
+
     /** Mutex to prevent concurrent token refresh races (which cause token revocation). */
     private val authMutex = Mutex()
 
@@ -81,25 +84,33 @@ class SupabaseApiService(
      *    refresh and retries the block.
      */
     private suspend fun <T> ensureAuthenticated(block: suspend () -> T): T {
-        // 1. Wait for initialization if necessary with a strict timeout
-        if (client.auth.sessionStatus.value is SessionStatus.Initializing) {
-            println("SupabaseApiService: Waiting for session initialization...")
-            withTimeoutOrNull(5000) {
-                client.auth.sessionStatus.first { it !is SessionStatus.Initializing }
+        // 1. Wait for a TERMINAL session state if currently in any transient state.
+        // Transient states include:
+        //   - Initializing    → SDK loading session from storage on cold start
+        //   - RefreshFailure  → SDK found expired token and is retrying the refresh
+        // We must NOT bail out early during RefreshFailure — that is when most network
+        // calls fire on recents-restoration and would wrongly throw AuthenticationException.
+        val currentStatus = client.auth.sessionStatus.value
+        val isTransient = currentStatus is SessionStatus.Initializing ||
+                currentStatus::class.simpleName == "RefreshFailure"
+        if (isTransient) {
+            println("SupabaseApiService[ensureAuthenticated]: Transient state detected ($currentStatus), waiting for settlement...")
+            withTimeoutOrNull(10_000) {
+                client.auth.sessionStatus.first { status ->
+                    status is SessionStatus.Authenticated || status is SessionStatus.NotAuthenticated
+                }
             }
-            // After initialization, if we are NotAuthenticated, give it one more short wait
-            // to handle the "flicker" where it briefly reports NotAuthenticated before restoration.
-            if (client.auth.sessionStatus.value is SessionStatus.NotAuthenticated) {
-                println("SupabaseApiService: Post-init flicker check (waiting 1s for potential session restoration)...")
-                delay(1000) 
-            }
-            println("SupabaseApiService: Session initialization finished or timed out (final status: ${client.auth.sessionStatus.value})")
+            println("SupabaseApiService[ensureAuthenticated]: Settlement done (status: ${client.auth.sessionStatus.value})")
         }
 
-        // 2. Check if we have a session
+        // 2. Check if we have a valid session
         if (client.auth.currentSessionOrNull() == null) {
-            // Final attempt: wait for session loaded if we just finished initializing
-            val settledUserId = waitForSessionLoaded()
+            // The session might be null because the status is transiently NotAuthenticated
+            // between RefreshFailure retries. Use waitForAuthenticated() — NOT
+            // waitForSessionLoaded() — because waitForSessionLoaded() treats a currently-
+            // NotAuthenticated StateFlow value as immediately terminal and returns null,
+            // defeating the entire purpose of this wait.
+            val settledUserId = waitForAuthenticated()
             if (settledUserId == null) {
                 throw AuthenticationException("No active session")
             }
@@ -195,15 +206,10 @@ class SupabaseApiService(
                 override fun onNotificationClicked(data: com.mmk.kmpnotifier.notification.PayloadData) {
                     super.onNotificationClicked(data)
                     println("Notification clicked, payload: $data")
-                    val communityId = data["community_id"] as? String
-                    if (communityId != null) {
-                        com.run.peakflow.presentation.navigation.DeepLinkNavigator.navigate(
-                            com.run.peakflow.presentation.navigation.DeepLinkNavigator.DeepLink.CommunityPost(
-                                communityId = communityId,
-                                postId = data["post_id"] as? String
-                            )
-                        )
-                    }
+                    // Architecture fix: Don't call Presentation layer (DeepLinkNavigator) from Data layer.
+                    // Emit a generic notification event that the Presentation layer can observe.
+                    val payloadMap = data.mapValues { it.value.toString() }
+                    _notificationEvents.tryEmit(NotificationEvent.DeepLink(payloadMap))
                 }
             })
 
@@ -581,13 +587,16 @@ class SupabaseApiService(
                 is SessionStatus.Authenticated -> AuthSessionStatus.Authenticated(status.session.user?.id ?: "")
                 is SessionStatus.NotAuthenticated -> AuthSessionStatus.NotAuthenticated
                 is SessionStatus.Initializing -> AuthSessionStatus.Loading
-                // Use string comparison or check if it's a known RefreshFailure if the type is not directly accessible
+                // Use string-based comparison for types not directly accessible from the SDK
                 else -> {
                     val statusName = status::class.simpleName
-                    if (statusName == "NetworkError") {
-                        AuthSessionStatus.NetworkError
-                    } else {
-                        AuthSessionStatus.NotAuthenticated
+                    when (statusName) {
+                        "NetworkError" -> AuthSessionStatus.NetworkError
+                        // RefreshFailure is TRANSIENT: the SDK is in the middle of retrying
+                        // an expired token. Map it to Loading so AuthRepository doesn't
+                        // prematurely clear the session before the retry completes.
+                        "RefreshFailure" -> AuthSessionStatus.Loading
+                        else -> AuthSessionStatus.NotAuthenticated
                     }
                 }
             }
@@ -598,42 +607,32 @@ class SupabaseApiService(
 
     override suspend fun waitForSessionLoaded(): String? {
         println("SupabaseApiService: waitForSessionLoaded start (current status: ${client.auth.sessionStatus.value})")
-        // Wait for session to finish loading from storage (not Initializing)
-        return withTimeoutOrNull(5000) {
-            // Wait for the session status to move OUT of Initializing.
-            // If it starts in NotAuthenticated, it might be because the SDK hasn't
-            // triggered the 'Initializing' state yet. We wait for it to either
-            // start initializing or become authenticated.
-            var currentStatus = client.auth.sessionStatus.value
-            
-            // If we are at NotAuthenticated at the very start of the process, 
-            // wait longer for the 'Initializing' transition (e.g. storage reader warm-up)
-            if (currentStatus is SessionStatus.NotAuthenticated) {
-                println("SupabaseApiService: status is NotAuthenticated, waiting for Initializing/Authenticated...")
-                // Wait up to 2.5s for it to enter Initializing
-                withTimeoutOrNull(2500) {
-                    client.auth.sessionStatus.first { it is SessionStatus.Initializing || it is SessionStatus.Authenticated }
-                }
-                currentStatus = client.auth.sessionStatus.value
-                println("SupabaseApiService: status after first wait: $currentStatus")
+        // Wait for a TERMINAL session state: either Authenticated or NotAuthenticated.
+        // We must ride through ALL transient states:
+        //   Initializing  → SDK is loading session from storage
+        //   RefreshFailure → SDK found an expired token and is retrying the refresh
+        // A 10-second timeout covers slow-network refresh round-trips.
+        return withTimeoutOrNull(10_000) {
+            val terminalStatus = client.auth.sessionStatus.first { status ->
+                val isTerminal = status is SessionStatus.Authenticated ||
+                        status is SessionStatus.NotAuthenticated
+                println("SupabaseApiService: waitForSessionLoaded polling status=$status, isTerminal=$isTerminal")
+                isTerminal
             }
-
-            if (currentStatus is SessionStatus.Initializing) {
-                println("SupabaseApiService: Entering Initializing state, waiting for completion...")
-                client.auth.sessionStatus.first { it !is SessionStatus.Initializing }
-                println("SupabaseApiService: Leaving Initializing state (new status: ${client.auth.sessionStatus.value})")
-            }
-
-            // Then return the user ID if authenticated
-            when (val status = client.auth.sessionStatus.value) {
+            when (terminalStatus) {
                 is SessionStatus.Authenticated -> {
-                    println("SupabaseApiService: waitForSessionLoaded returning Authenticated (${status.session.user?.id})")
-                    status.session.user?.id
+                    val userId = terminalStatus.session.user?.id
+                    println("SupabaseApiService: waitForSessionLoaded → Authenticated (userId=$userId)")
+                    userId
                 }
                 else -> {
-                    println("SupabaseApiService: waitForSessionLoaded returning null (final status: $status)")
+                    println("SupabaseApiService: waitForSessionLoaded → NotAuthenticated (final status=$terminalStatus)")
                     null
                 }
+            }
+        }.also { result ->
+            if (result == null) {
+                println("SupabaseApiService: waitForSessionLoaded timed out or settled on NotAuthenticated")
             }
         }
     }
@@ -643,6 +642,34 @@ class SupabaseApiService(
             client.auth.signOut()
         } catch (_: Exception) {
             // Ignore sign out errors
+        }
+    }
+
+    override suspend fun waitForAuthenticated(): String? {
+        val current = client.auth.sessionStatus.value
+        println("SupabaseApiService: waitForAuthenticated start (status: $current)")
+
+        // Fast path: already authenticated
+        if (current is SessionStatus.Authenticated) {
+            val userId = current.session.user?.id
+            println("SupabaseApiService: waitForAuthenticated → immediately Authenticated (userId=$userId)")
+            return userId
+        }
+
+        // Wait specifically for Authenticated — do NOT treat NotAuthenticated as terminal here.
+        // Rationale: the Supabase SDK emits NotAuthenticated between RefreshFailure retries
+        // (i.e., the status is transiently NotAuthenticated while the SDK is still trying to
+        // refresh an expired token). If we confirm NotAuthenticated immediately, we log the
+        // user out before the retry succeeds. We give the SDK up to 10 seconds to succeed.
+        return withTimeoutOrNull(10_000) {
+            val authenticated = client.auth.sessionStatus.first { it is SessionStatus.Authenticated }
+            val userId = (authenticated as SessionStatus.Authenticated).session.user?.id
+            println("SupabaseApiService: waitForAuthenticated → Authenticated (userId=$userId)")
+            userId
+        }.also { result ->
+            if (result == null) {
+                println("SupabaseApiService: waitForAuthenticated → timed out (no Authenticated within 10s)")
+            }
         }
     }
 
@@ -2072,8 +2099,9 @@ class SupabaseApiService(
                 changeFlow.collect { action ->
                     val row = action.decodeRecord<PostRow>()
                     if (row.community_id != communityId) return@collect
-                    val profile = com.run.peakflow.data.cache.ProfileCache.get(row.author_id)
-                        ?: try { getUser(row.author_id)?.also { com.run.peakflow.data.cache.ProfileCache.put(row.author_id, it) } } catch (_: Exception) { null }
+                    val profile = com.run.peakflow.data.cache.ProfileCache.getOrFetch(row.author_id) {
+                        getUser(row.author_id)
+                    }
                     trySend(
                         Post(
                             id = row.id,
@@ -2123,8 +2151,9 @@ class SupabaseApiService(
                 changeFlow.collect { action ->
                     val row = action.decodeRecord<CommentRow>()
                     if (row.post_id != postId) return@collect
-                    val profile = com.run.peakflow.data.cache.ProfileCache.get(row.user_id)
-                        ?: try { getUser(row.user_id)?.also { com.run.peakflow.data.cache.ProfileCache.put(row.user_id, it) } } catch (_: Exception) { null }
+                    val profile = com.run.peakflow.data.cache.ProfileCache.getOrFetch(row.user_id) {
+                        getUser(row.user_id)
+                    }
                     trySend(
                         PostComment(
                             id = row.id,

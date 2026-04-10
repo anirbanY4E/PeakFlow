@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,30 +63,36 @@ class ProfileComponent(
             _state.update { it.copy(isLoading = true, error = null) }
 
             try {
-                // Parallelize all 3 independent calls
-                val userDeferred = async { getCurrentUser() }
-                val membershipsDeferred = async { getUserMemberships() }
-                val attendanceDeferred = async { getUserAttendanceHistory() }
+                // Use coroutineScope{} so that any child async{} failure propagates
+                // immediately into this try/catch. Without it, async failures with a
+                // SupervisorJob scope escape the try/catch and crash the app with
+                // FATAL EXCEPTION via the default uncaught coroutine exception handler.
+                coroutineScope {
+                    val userDeferred = async { getCurrentUser() }
+                    val membershipsDeferred = async { getUserMemberships() }
+                    val attendanceDeferred = async { getUserAttendanceHistory() }
 
-                val user = userDeferred.await()
-                val memberships = membershipsDeferred.await()
-                val attendance = attendanceDeferred.await()
+                    val user = userDeferred.await()
+                    val memberships = membershipsDeferred.await()
+                    val attendance = attendanceDeferred.await()
 
-                val stats = ProfileStats(
-                    communitiesCount = memberships.size,
-                    eventsAttended = attendance.size,
-                    points = attendance.size * 10 // 10 points per event attended
-                )
-
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        user = user,
-                        stats = stats,
-                        interests = user?.interests ?: emptyList()
+                    val stats = ProfileStats(
+                        communitiesCount = memberships.size,
+                        eventsAttended = attendance.size,
+                        points = attendance.size * 10
                     )
+
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            user = user,
+                            stats = stats,
+                            interests = user?.interests ?: emptyList()
+                        )
+                    }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (e is AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 }
@@ -94,6 +102,7 @@ class ProfileComponent(
             hasLoadedOnce = true
         }
     }
+
 
     fun onSettingsClick() {
         onNavigateToSettings()

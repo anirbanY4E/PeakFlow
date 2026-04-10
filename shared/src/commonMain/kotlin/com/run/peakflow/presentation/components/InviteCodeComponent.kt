@@ -11,6 +11,7 @@ import com.run.peakflow.presentation.state.InviteCodeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +72,7 @@ class InviteCodeComponent(
                 } catch (e: AuthenticationException) {
                     authRepository.handleAuthenticationError()
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     _state.update {
                         it.copy(
                             isValidating = false,
